@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Preis- und Lagerliste</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #f4f6f8;
+      color: #222;
+    }
+    .container {
+      width: min(1350px, 96%);
+      margin: 30px auto;
+    }
+    h1, h2, h3 { margin-top: 0; }
+    .subtitle { color: #666; margin-bottom: 24px; }
+    .panel, .person-card, .summary {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.05);
+    }
+    .person-header {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .person-header label { font-weight: bold; }
+    .person-name {
+      padding: 9px 11px;
+      border: 1px solid #bbb;
+      border-radius: 6px;
+      min-width: 240px;
+      font-size: 15px;
+    }
+    .table-wrap { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 1180px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 9px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    th { background: #f0f2f5; }
+    td input, td select {
+      width: 100%;
+      padding: 7px 8px;
+      border: 1px solid #c7c7c7;
+      border-radius: 5px;
+      font-size: 14px;
+      background: #fff;
+    }
+    td.number {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .actions { width: 110px; text-align: center; }
+    button {
+      border: 0;
+      border-radius: 6px;
+      padding: 9px 13px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .add-btn, .save-btn, .load-btn {
+      margin-top: 12px;
+      background: #1f6feb;
+      color: white;
+      font-weight: bold;
+    }
+    .load-btn { background: #475467; }
+    .delete-btn {
+      background: #d92d20;
+      color: white;
+      padding: 7px 10px;
+    }
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 0 0 24px;
+    }
+    .toolbar button { margin-top: 0; }
+    .person-total {
+      margin-top: 14px;
+      text-align: right;
+      font-size: 18px;
+      font-weight: bold;
+    }
+    .storage-info {
+      font-size: 13px;
+      margin-top: 4px;
+      white-space: nowrap;
+    }
+    .storage-ok { color: #067647; font-weight: bold; }
+    .storage-warning { color: #b42318; font-weight: bold; }
+    .custom-capacity { margin-top: 6px; display: none; }
+    .summary { border: 2px solid #222; }
+    .summary-person {
+      margin-bottom: 26px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid #ddd;
+    }
+    .summary-person:last-child { border-bottom: none; }
+    .summary-person-total {
+      margin-top: 10px;
+      text-align: right;
+      font-size: 17px;
+      font-weight: bold;
+    }
+    .grand-total {
+      margin-top: 18px;
+      padding-top: 16px;
+      border-top: 2px solid #222;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px 20px;
+      font-size: 20px;
+      font-weight: bold;
+    }
+    .price-list-note { color: #666; margin-bottom: 12px; }
+    .price-list-total { margin-top: 10px; font-weight: bold; text-align: right; }
+    .hint { color: #667085; font-size: 13px; margin-top: 8px; }
+    @media (max-width: 600px) {
+      .container { width: 96%; }
+      .person-card, .panel, .summary { padding: 12px; }
+      h1 { font-size: 24px; }
+      .grand-total { font-size: 17px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Preis- und Lagerliste</h1>
+    <div class="subtitle">
+      Für 5 Personen mit zentraler Artikelliste, Lagerstatus und automatischer Preisberechnung.
+    </div>
+
+    <div class="toolbar">
+      <button type="button" class="save-btn" id="saveBtn">Tabelle speichern</button>
+      <button type="button" class="load-btn" id="loadBtn">Tabelle einlesen</button>
+      <input type="file" id="fileInput" accept=".json,application/json" hidden>
+    </div>
+
+    <div id="persons"></div>
+
+    <div class="summary">
+      <h2>Gesamtübersicht</h2>
+      <div id="summaryPersons"></div>
+
+      <div class="grand-total">
+        <span>Gesamtes Grüngeld</span>
+        <span id="grandGreenTotal">0,00 €</span>
+
+        <span>Netto-Summe (−30 %) aller Personen</span>
+        <span id="grandAltTotal">0,00 €</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Artikelliste & Festpreise</h2>
+      <div class="price-list-note">
+        Hier legst du Artikel und Festpreise an.
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Artikelname</th>
+              <th>Festpreis</th>
+              <th>Aktion</th>
+            </tr>
+          </thead>
+          <tbody id="priceListBody"></tbody>
+        </table>
+      </div>
+
+      <button type="button" class="add-btn" id="addPriceItemBtn">+ Artikel anlegen</button>
+      <div class="price-list-total">
+        Anzahl angelegter Artikel: <span id="priceItemCount">0</span>
+      </div>
+      <div class="hint">
+        Die gespeicherte JSON-Datei enthält alle Personen, Artikel, Preise, Lagerangaben und Eingaben und kann später wieder eingelesen werden.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const personCount = 5;
+    const startRowsPerPerson = 3;
+
+    const personsContainer = document.getElementById("persons");
+    const summaryPersons = document.getElementById("summaryPersons");
+    const priceListBody = document.getElementById("priceListBody");
+    const addPriceItemBtn = document.getElementById("addPriceItemBtn");
+    const saveBtn = document.getElementById("saveBtn");
+    const loadBtn = document.getElementById("loadBtn");
+    const fileInput = document.getElementById("fileInput");
+
+    let priceItems = [
+      { id: crypto.randomUUID(), name: "Artikel 1", price: 0 },
+      { id: crypto.randomUUID(), name: "Artikel 2", price: 0 }
+    ];
+
+    function euro(value) {
+      return new Intl.NumberFormat("de-DE", {
+        style: "currency",
+        currency: "EUR"
+      }).format(value || 0);
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function getPriceItemById(id) {
+      return priceItems.find(item => item.id === id);
+    }
+
+    function buildArticleOptions(selectedId = "") {
+      const first = `<option value="">Artikel auswählen</option>`;
+      const options = priceItems.map(item => {
+        const selected = item.id === selectedId ? "selected" : "";
+        const label = item.name.trim() || "Unbenannter Artikel";
+        return `<option value="${item.id}" ${selected}>${escapeHtml(label)}</option>`;
+      }).join("");
+      return first + options;
+    }
+
+    function createArticleRow(data = {}) {
+      const row = document.createElement("tr");
+      const selectedId = data.articleId || "";
+
+      row.innerHTML = `
+        <td>
+          <select class="article-select">${buildArticleOptions(selectedId)}</select>
+        </td>
+        <td>
+          <input type="number" class="stock-status-input" min="0" step="1" value="${Number(data.stock) || 0}">
+        </td>
+        <td>
+          <select class="warehouse">
+            <option value="5000">Lager 5.000 Stk.</option>
+            <option value="8000">Lager 8.000 Stk.</option>
+            <option value="custom">Benutzerdefiniert</option>
+          </select>
+          <input type="number" class="custom-capacity" min="0" step="1"
+                 placeholder="Eigene Lagergröße" value="${Number(data.customCapacity) || ""}">
+          <div class="storage-info"></div>
+        </td>
+        <td class="number unit-price">0,00 €</td>
+        <td class="number green-total">0,00 €</td>
+        <td>
+          <input type="number" class="alt-price-input" min="0" step="0.01" value="${Number(data.altPrice) || 0}" placeholder="Preis eingeben">
+        </td>
+        <td class="number alt-total">0,00 €</td>
+        <td class="actions">
+          <button type="button" class="delete-btn">Löschen</button>
+        </td>
+      `;
+
+      const warehouse = row.querySelector(".warehouse");
+      warehouse.value = data.warehouse || "5000";
+      row.querySelector(".custom-capacity").style.display =
+        warehouse.value === "custom" ? "block" : "none";
+
+      row.querySelector(".delete-btn").addEventListener("click", () => {
+        row.remove();
+        calculateAll();
+      });
+
+      warehouse.addEventListener("change", e => {
+        const customInput = row.querySelector(".custom-capacity");
+        customInput.style.display = e.target.value === "custom" ? "block" : "none";
+        calculateAll();
+      });
+
+      row.querySelector(".article-select").addEventListener("change", calculateAll);
+      row.querySelector(".custom-capacity").addEventListener("input", calculateAll);
+
+      return row;
+    }
+
+    function createPerson(personIndex, saved = null) {
+      const card = document.createElement("div");
+      card.className = "person-card";
+      card.dataset.person = personIndex;
+
+      card.innerHTML = `
+        <div class="person-header">
+          <label>Name:</label>
+          <input class="person-name" type="text" value="${escapeHtml(saved?.name || `Person ${personIndex}`)}">
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Artikel</th>
+                <th>Lagerstatus</th>
+                <th>Lager</th>
+                <th>Einzelpreis</th>
+                <th>Grüngeld</th>
+                <th>Sonderpreis</th>
+                <th>Netto-Summe (−30 %)</th>
+                <th>Aktion</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <button type="button" class="add-btn">+ Artikel hinzufügen</button>
+
+        <div class="person-total">
+          Grüngeld: <span class="person-green-total">0,00 €</span>
+          &nbsp; | &nbsp;
+          Netto-Summe (−30 %): <span class="person-alt-total">0,00 €</span>
+        </div>
+      `;
+
+      const tbody = card.querySelector("tbody");
+      const rows = saved?.rows?.length ? saved.rows : Array.from({length: startRowsPerPerson}, () => ({}));
+      rows.forEach(r => tbody.appendChild(createArticleRow(r)));
+
+      card.querySelector(".add-btn").addEventListener("click", () => {
+        tbody.appendChild(createArticleRow());
+        calculateAll();
+      });
+
+      personsContainer.appendChild(card);
+    }
+
+    function rebuildPersons(savedPersons = null) {
+      personsContainer.innerHTML = "";
+      for (let i = 1; i <= personCount; i++) {
+        createPerson(i, savedPersons?.[i - 1] || null);
+      }
+    }
+
+    function renderPriceList() {
+      priceListBody.innerHTML = "";
+
+      priceItems.forEach(item => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td><input type="text" class="price-item-name" value="${escapeHtml(item.name)}"></td>
+          <td><input type="number" class="price-item-price" min="0" step="0.01" value="${Number(item.price) || 0}"></td>
+          <td class="actions"><button type="button" class="delete-btn">Löschen</button></td>
+        `;
+
+        row.querySelector(".price-item-name").addEventListener("input", e => {
+          item.name = e.target.value;
+          refreshAllArticleSelects();
+          calculateAll();
+        });
+
+        row.querySelector(".price-item-price").addEventListener("input", e => {
+          item.price = Math.max(0, parseFloat(e.target.value) || 0);
+          calculateAll();
+        });
+
+        row.querySelector(".delete-btn").addEventListener("click", () => {
+          priceItems = priceItems.filter(x => x.id !== item.id);
+          renderPriceList();
+          refreshAllArticleSelects();
+          calculateAll();
+        });
+
+        priceListBody.appendChild(row);
+      });
+
+      document.getElementById("priceItemCount").textContent = priceItems.length;
+    }
+
+    function refreshAllArticleSelects() {
+      document.querySelectorAll(".article-select").forEach(select => {
+        const current = select.value;
+        select.innerHTML = buildArticleOptions(current);
+        if (!getPriceItemById(current)) select.value = "";
+      });
+    }
+
+    addPriceItemBtn.addEventListener("click", () => {
+      priceItems.push({
+        id: crypto.randomUUID(),
+        name: `Artikel ${priceItems.length + 1}`,
+        price: 0
+      });
+      renderPriceList();
+      refreshAllArticleSelects();
+      calculateAll();
+    });
+
+    function calculateAll() {
+      let grandGreen = 0;
+      let grandAlt = 0;
+      summaryPersons.innerHTML = "";
+
+      document.querySelectorAll(".person-card").forEach((card, personIdx) => {
+        const name = card.querySelector(".person-name").value.trim() || `Person ${personIdx + 1}`;
+        let personGreen = 0;
+        let personAlt = 0;
+        let summaryRows = "";
+
+        card.querySelectorAll("tbody tr").forEach(row => {
+          const article = getPriceItemById(row.querySelector(".article-select").value);
+          const stock = Math.max(0, parseFloat(row.querySelector(".stock-status-input").value) || 0);
+          const unitPrice = article ? Number(article.price) || 0 : 0;
+          const altPrice = Math.max(0, parseFloat(row.querySelector(".alt-price-input").value) || 0);
+
+          const greenTotal = stock * unitPrice;
+          const altGross = stock * altPrice;
+          const altTotal = altGross * 0.70;
+
+          personGreen += greenTotal;
+          personAlt += altTotal;
+
+          row.querySelector(".unit-price").textContent = euro(unitPrice);
+          row.querySelector(".green-total").textContent = euro(greenTotal);
+          
+          row.querySelector(".alt-total").textContent = euro(altTotal);
+
+          const warehouseSelect = row.querySelector(".warehouse");
+          const customCapacity = Math.max(0, parseFloat(row.querySelector(".custom-capacity").value) || 0);
+          const capacity = warehouseSelect.value === "custom"
+            ? customCapacity
+            : parseInt(warehouseSelect.value, 10) || 0;
+
+          const storageInfo = row.querySelector(".storage-info");
+          if (capacity > 0) {
+            const remaining = capacity - stock;
+            if (stock > capacity) {
+              storageInfo.textContent = `Überfüllt um ${(stock - capacity).toLocaleString("de-DE")} Stk.`;
+              storageInfo.className = "storage-info storage-warning";
+            } else {
+              storageInfo.textContent = `${stock.toLocaleString("de-DE")} / ${capacity.toLocaleString("de-DE")} Stk. – frei: ${remaining.toLocaleString("de-DE")}`;
+              storageInfo.className = "storage-info storage-ok";
+            }
+          } else {
+            storageInfo.textContent = warehouseSelect.value === "custom" ? "Eigene Lagergröße eintragen" : "";
+            storageInfo.className = "storage-info";
+          }
+
+          if (article) {
+            summaryRows += `
+              <tr>
+                <td>${escapeHtml(article.name)}</td>
+                <td>${stock.toLocaleString("de-DE")}</td>
+                <td class="number">${euro(unitPrice)}</td>
+                <td class="number">${euro(greenTotal)}</td>
+                <td class="number">${euro(altPrice)}</td>
+                <td class="number">${euro(altTotal)}</td>
+              </tr>
+            `;
+          }
+        });
+
+        grandGreen += personGreen;
+        grandAlt += personAlt;
+
+        card.querySelector(".person-green-total").textContent = euro(personGreen);
+        card.querySelector(".person-alt-total").textContent = euro(personAlt);
+
+        if (!summaryRows) {
+          summaryRows = `<tr><td colspan="6">Noch keine Artikel ausgewählt.</td></tr>`;
+        }
+
+        const block = document.createElement("div");
+        block.className = "summary-person";
+        block.innerHTML = `
+          <h3>${escapeHtml(name)}</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Artikel</th>
+                  <th>Lagerstatus</th>
+                  <th>Einzelpreis</th>
+                  <th>Grüngeld</th>
+                  <th>Sonderpreis</th>
+                  <th>Netto-Summe (−30 %)</th>
+                </tr>
+              </thead>
+              <tbody>${summaryRows}</tbody>
+            </table>
+          </div>
+          <div class="summary-person-total">
+            Grüngeld: ${euro(personGreen)}
+            &nbsp; | &nbsp;
+            Netto-Summe (−30 %): ${euro(personAlt)}
+          </div>
+        `;
+        summaryPersons.appendChild(block);
+      });
+
+      document.getElementById("grandGreenTotal").textContent = euro(grandGreen);
+      document.getElementById("grandAltTotal").textContent = euro(grandAlt);
+      
+      
+    }
+
+    function collectData() {
+      const persons = [...document.querySelectorAll(".person-card")].map(card => ({
+        name: card.querySelector(".person-name").value,
+        rows: [...card.querySelectorAll("tbody tr")].map(row => ({
+          articleId: row.querySelector(".article-select").value,
+          stock: Number(row.querySelector(".stock-status-input").value) || 0,
+          warehouse: row.querySelector(".warehouse").value,
+          customCapacity: Number(row.querySelector(".custom-capacity").value) || 0,
+          altPrice: Number(row.querySelector(".alt-price-input").value) || 0
+        }))
+      }));
+
+      return {
+        version: 1,
+        savedAt: new Date().toISOString(),
+        priceItems,
+        persons
+      };
+    }
+
+    saveBtn.addEventListener("click", () => {
+      const data = collectData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "preis-und-lagerliste.json";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+
+    loadBtn.addEventListener("click", () => fileInput.click());
+
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files?.[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+
+        if (!Array.isArray(data.priceItems) || !Array.isArray(data.persons)) {
+          throw new Error("Ungültiges Dateiformat");
+        }
+
+        priceItems = data.priceItems.map(item => ({
+          id: item.id || crypto.randomUUID(),
+          name: item.name || "Artikel",
+          price: Number(item.price) || 0
+        }));
+
+        renderPriceList();
+        rebuildPersons(data.persons);
+        refreshAllArticleSelects();
+        calculateAll();
+      } catch (err) {
+        alert("Die Datei konnte nicht eingelesen werden.");
+      } finally {
+        fileInput.value = "";
+      }
+    });
+
+    document.addEventListener("input", e => {
+      if (
+        e.target.classList.contains("stock-status-input") ||
+        e.target.classList.contains("alt-price-input") ||
+        e.target.classList.contains("person-name")
+      ) calculateAll();
+    });
+
+    document.addEventListener("change", e => {
+      if (
+        e.target.classList.contains("warehouse") ||
+        e.target.classList.contains("article-select")
+      ) calculateAll();
+    });
+
+    renderPriceList();
+    rebuildPersons();
+    refreshAllArticleSelects();
+    calculateAll();
+  </script>
+</body>
+</html>
