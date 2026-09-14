@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
+  <meta charset="utf-8">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Preis- und Lagerliste</title>
@@ -146,7 +147,7 @@
   <div class="container">
     <h1>Preis- und Lagerliste</h1>
     <div class="subtitle">
-      FÃ¼r eine Person mit zentraler Artikelliste, Lagerstatus und automatischer Preisberechnung.
+      F&uuml;r eine Person mit zentraler Artikelliste, Lagerstatus und automatischer Preisberechnung.
     </div>
 
     <div class="toolbar">
@@ -158,15 +159,15 @@
     <div id="persons"></div>
 
     <div class="summary">
-      <h2>GesamtÃ¼bersicht</h2>
+      <h2>Gesamt&uuml;bersicht</h2>
       <div id="summaryPersons"></div>
 
       <div class="grand-total">
-        <span>Gesamtes GrÃ¼ngeld</span>
-        <span id="grandGreenTotal">0,00 â‚¬</span>
+        <span>Gesamtes Gr&uuml;ngeld</span>
+        <span id="grandGreenTotal">0,00 &euro;</span>
 
-        <span>Netto-Summe (âˆ’30 %)</span>
-        <span id="grandAltTotal">0,00 â‚¬</span>
+        <span>Netto-Summe (&minus;30 %)</span>
+        <span id="grandAltTotal">0,00 &euro;</span>
       </div>
     </div>
 
@@ -194,7 +195,7 @@
         Anzahl angelegter Artikel: <span id="priceItemCount">0</span>
       </div>
       <div class="hint">
-        Die gespeicherte JSON-Datei enthÃ¤lt die Person, Artikel, Preise, Lagerangaben und Eingaben und kann spÃ¤ter wieder eingelesen werden.
+        Die gespeicherte JSON-Datei enth&auml;lt die Person, Artikel, Preise, Lagerangaben und Eingaben und kann sp&auml;ter wieder eingelesen werden.
       </div>
     </div>
   </div>
@@ -237,7 +238,7 @@
     }
 
     function buildArticleOptions(selectedId = "") {
-      const first = `<option value="">Artikel auswÃ¤hlen</option>`;
+      const first = `<option value="">Artikel ausw&auml;hlen</option>`;
       const options = priceItems.map(item => {
         const selected = item.id === selectedId ? "selected" : "";
         const label = item.name.trim() || "Unbenannter Artikel";
@@ -264,17 +265,17 @@
             <option value="custom">Benutzerdefiniert</option>
           </select>
           <input type="number" class="custom-capacity" min="0" step="1"
-                 placeholder="Eigene LagergrÃ¶ÃŸe" value="${Number(data.customCapacity) || ""}">
+                 placeholder="Eigene Lagergr&ouml;&szlig;e" value="${Number(data.customCapacity) || ""}">
           <div class="storage-info"></div>
         </td>
-        <td class="number unit-price">0,00 â‚¬</td>
-        <td class="number green-total">0,00 â‚¬</td>
+        <td class="number unit-price">0,00 &euro;</td>
+        <td class="number green-total">0,00 &euro;</td>
         <td>
           <input type="number" class="alt-price-input" min="0" step="0.01" value="${Number(data.altPrice) || 0}" placeholder="Preis eingeben">
         </td>
-        <td class="number alt-total">0,00 â‚¬</td>
+        <td class="number alt-total">0,00 &euro;</td>
         <td class="actions">
-          <button type="button" class="delete-btn">LÃ¶schen</button>
+          <button type="button" class="delete-btn">L&ouml;schen</button>
         </td>
       `;
 
@@ -319,9 +320,9 @@
                 <th>Lagerstatus</th>
                 <th>Lager</th>
                 <th>Einzelpreis</th>
-                <th>GrÃ¼ngeld</th>
+                <th>Gr&uuml;ngeld</th>
                 <th>Sonderpreis</th>
-                <th>Netto-Summe (âˆ’30 %)</th>
+                <th>Netto-Summe (&minus;30 %)</th>
                 <th>Aktion</th>
               </tr>
             </thead>
@@ -329,12 +330,12 @@
           </table>
         </div>
 
-        <button type="button" class="add-btn">+ Artikel hinzufÃ¼gen</button>
+        <button type="button" class="add-btn">+ Artikel hinzuf&uuml;gen</button>
 
         <div class="person-total">
-          GrÃ¼ngeld: <span class="person-green-total">0,00 â‚¬</span>
+          Gr&uuml;ngeld: <span class="person-green-total">0,00 &euro;</span>
           &nbsp; | &nbsp;
-          Netto-Summe (âˆ’30 %): <span class="person-alt-total">0,00 â‚¬</span>
+          Netto-Summe (&minus;30 %): <span class="person-alt-total">0,00 &euro;</span>
         </div>
       `;
 
@@ -365,7 +366,7 @@
         row.innerHTML = `
           <td><input type="text" class="price-item-name" value="${escapeHtml(item.name)}"></td>
           <td><input type="number" class="price-item-price" min="0" step="0.01" value="${Number(item.price) || 0}"></td>
-          <td class="actions"><button type="button" class="delete-btn">LÃ¶schen</button></td>
+          <td class="actions"><button type="button" class="delete-btn">L&ouml;schen</button></td>
         `;
 
         row.querySelector(".price-item-name").addEventListener("input", e => {
@@ -450,14 +451,14 @@
           if (capacity > 0) {
             const remaining = capacity - stock;
             if (stock > capacity) {
-              storageInfo.textContent = `ÃœberfÃ¼llt um ${(stock - capacity).toLocaleString("de-DE")} Stk.`;
+              storageInfo.textContent = `&Uuml;berf&uuml;llt um ${(stock - capacity).toLocaleString("de-DE")} Stk.`;
               storageInfo.className = "storage-info storage-warning";
             } else {
               storageInfo.textContent = `${stock.toLocaleString("de-DE")} / ${capacity.toLocaleString("de-DE")} Stk. â€“ frei: ${remaining.toLocaleString("de-DE")}`;
               storageInfo.className = "storage-info storage-ok";
             }
           } else {
-            storageInfo.textContent = warehouseSelect.value === "custom" ? "Eigene LagergrÃ¶ÃŸe eintragen" : "";
+            storageInfo.textContent = warehouseSelect.value === "custom" ? "Eigene Lagergr&ouml;&szlig;e eintragen" : "";
             storageInfo.className = "storage-info";
           }
 
@@ -482,7 +483,7 @@
         card.querySelector(".person-alt-total").textContent = euro(personAlt);
 
         if (!summaryRows) {
-          summaryRows = `<tr><td colspan="6">Noch keine Artikel ausgewÃ¤hlt.</td></tr>`;
+          summaryRows = `<tr><td colspan="6">Noch keine Artikel ausgew&auml;hlt.</td></tr>`;
         }
 
         const block = document.createElement("div");
@@ -496,18 +497,18 @@
                   <th>Artikel</th>
                   <th>Lagerstatus</th>
                   <th>Einzelpreis</th>
-                  <th>GrÃ¼ngeld</th>
+                  <th>Gr&uuml;ngeld</th>
                   <th>Sonderpreis</th>
-                  <th>Netto-Summe (âˆ’30 %)</th>
+                  <th>Netto-Summe (&minus;30 %)</th>
                 </tr>
               </thead>
               <tbody>${summaryRows}</tbody>
             </table>
           </div>
           <div class="summary-person-total">
-            GrÃ¼ngeld: ${euro(personGreen)}
+            Gr&uuml;ngeld: ${euro(personGreen)}
             &nbsp; | &nbsp;
-            Netto-Summe (âˆ’30 %): ${euro(personAlt)}
+            Netto-Summe (&minus;30 %): ${euro(personAlt)}
           </div>
         `;
         summaryPersons.appendChild(block);
@@ -563,7 +564,7 @@
         const data = JSON.parse(text);
 
         if (!Array.isArray(data.priceItems) || !Array.isArray(data.persons)) {
-          throw new Error("UngÃ¼ltiges Dateiformat");
+          throw new Error("Ung&uuml;ltiges Dateiformat");
         }
 
         priceItems = data.priceItems.map(item => ({
