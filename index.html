@@ -821,6 +821,18 @@
       ) calculateAll();
     });
 
+    document.addEventListener("input", e => {
+      if (e.target.matches("input, select")) {
+        scheduleOnlineSave();
+      }
+    });
+
+    document.addEventListener("change", e => {
+      if (e.target.matches("input, select")) {
+        scheduleOnlineSave();
+      }
+    });
+
     renderPriceList();
     rebuildPersons();
     refreshAllArticleSelects();
