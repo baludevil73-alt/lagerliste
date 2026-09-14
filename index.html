@@ -621,6 +621,28 @@
       }, 700);
     }
 
+
+    async function checkForOnlineChanges() {
+      if (!onlineReady || applyingRemote) return;
+      try {
+        const { data, error } = await supabaseClient
+          .from("shared_list")
+          .select("data, updated_at")
+          .eq("id", 1)
+          .single();
+
+        if (error) throw error;
+
+        if (data && data.updated_at && data.updated_at !== lastRemoteUpdatedAt && data.data) {
+          lastRemoteUpdatedAt = data.updated_at;
+          applyData(data.data);
+          setOnlineStatus("Online: synchronisiert", true);
+        }
+      } catch (err) {
+        console.error("Online check error:", err);
+      }
+    }
+
     function subscribeToRealtime() {
       supabaseClient
         .channel("shared-list-live")
@@ -658,6 +680,7 @@
       try {
         await loadFromSupabase();
         subscribeToRealtime();
+        setInterval(checkForOnlineChanges, 2000);
       } catch (err) {
         onlineReady = false;
         setOnlineStatus("Online-Verbindung fehlgeschlagen", false);
