@@ -150,13 +150,15 @@
   <div class="container">
     <h1>Preis- und Lagerliste</h1>
     <div class="subtitle">
-      F&uuml;r eine Person mit zentraler Artikelliste, Lagerstatus und automatischer Preisberechnung.
+      F&uuml;r 5 Personen mit zentraler Artikelliste, Lagerstatus und automatischer Preisberechnung.
     </div>
 
     <div class="toolbar">
       <button type="button" class="save-btn" id="saveBtn">Tabelle speichern</button>
       <button type="button" class="load-btn" id="loadBtn">Tabelle einlesen</button>
+      <button type="button" class="load-btn" id="syncBtn">Online synchronisieren</button>
       <input type="file" id="fileInput" accept=".json,application/json" hidden>
+      <span id="onlineStatus" style="align-self:center;font-weight:bold;color:#667085;">Online: verbindet...</span>
     </div>
 
     <div id="persons"></div>
@@ -203,8 +205,12 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    const personCount = 1;
+    const SUPABASE_URL = "https://rsyjesffnjwafhiiufgv.supabase.co";
+    const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_W1P8RUAbx4W_ecL10PN9uA_SAsZrew6";
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+    const personCount = 5;
     const startRowsPerPerson = 3;
 
     const personsContainer = document.getElementById("persons");
@@ -214,6 +220,13 @@
     const saveBtn = document.getElementById("saveBtn");
     const loadBtn = document.getElementById("loadBtn");
     const fileInput = document.getElementById("fileInput");
+    const syncBtn = document.getElementById("syncBtn");
+    const onlineStatus = document.getElementById("onlineStatus");
+
+    let onlineReady = false;
+    let applyingRemote = false;
+    let onlineSaveTimer = null;
+    let lastRemoteUpdatedAt = null;
 
     let priceItems = [
       { id: crypto.randomUUID(), name: "Artikel 1", price: 0 },
@@ -454,14 +467,14 @@
           if (capacity > 0) {
             const remaining = capacity - stock;
             if (stock > capacity) {
-              storageInfo.textContent = `&Uuml;berf&uuml;llt um ${(stock - capacity).toLocaleString("de-DE")} Stk.`;
+              storageInfo.textContent = `\u00dcberf\u00fcllt um ${(stock - capacity).toLocaleString("de-DE")} Stk.`;
               storageInfo.className = "storage-info storage-warning";
             } else {
-              storageInfo.textContent = `${stock.toLocaleString("de-DE")} / ${capacity.toLocaleString("de-DE")} Stk. \u2013 frei: ${remaining.toLocaleString("de-DE")}`;
+              storageInfo.textContent = `${stock.toLocaleString("de-DE")} / ${capacity.toLocaleString("de-DE")} Stk. | frei: ${remaining.toLocaleString("de-DE")}`;
               storageInfo.className = "storage-info storage-ok";
             }
           } else {
-            storageInfo.textContent = warehouseSelect.value === "custom" ? "Eigene Lagergr&ouml;&szlig;e eintragen" : "";
+            storageInfo.textContent = warehouseSelect.value === "custom" ? "Eigene Lagergr\u00f6\u00dfe eintragen" : "";
             storageInfo.className = "storage-info";
           }
 
@@ -523,6 +536,146 @@
       
     }
 
+
+    function setOnlineStatus(text, ok = null) {
+      onlineStatus.textContent = text;
+      onlineStatus.style.color = ok === true ? "#067647" : ok === false ? "#b42318" : "#667085";
+    }
+
+    function applyData(data) {
+      if (!data || !Array.isArray(data.priceItems) || !Array.isArray(data.persons)) {
+        throw new Error("Ungueltige Daten");
+      }
+
+      applyingRemote = true;
+      if (onlineSaveTimer) {
+        clearTimeout(onlineSaveTimer);
+        onlineSaveTimer = null;
+      }
+
+      priceItems = data.priceItems.map(item => ({
+        id: item.id || crypto.randomUUID(),
+        name: item.name || "Artikel",
+        price: Number(item.price) || 0
+      }));
+
+      renderPriceList();
+      rebuildPersons(data.persons);
+      refreshAllArticleSelects();
+      calculateAll();
+
+      applyingRemote = false;
+    }
+
+    async function loadFromSupabase() {
+      setOnlineStatus("Online: lade gemeinsame Liste...", null);
+
+      const { data, error } = await supabaseClient
+        .from("shared_list")
+        .select("data, updated_at")
+        .eq("id", 1)
+        .single();
+
+      if (error) throw error;
+
+      if (data && data.data && Array.isArray(data.data.priceItems) && Array.isArray(data.data.persons)) {
+        applyData(data.data);
+      }
+
+      lastRemoteUpdatedAt = data?.updated_at || null;
+      onlineReady = true;
+      setOnlineStatus("Online: synchronisiert", true);
+    }
+
+    async function saveToSupabase() {
+      if (!onlineReady || applyingRemote) return;
+
+      const payload = collectData();
+      setOnlineStatus("Online: speichert...", null);
+
+      const now = new Date().toISOString();
+      const { error } = await supabaseClient
+        .from("shared_list")
+        .update({
+          data: payload,
+          updated_at: now
+        })
+        .eq("id", 1);
+
+      if (error) {
+        setOnlineStatus("Online-Fehler beim Speichern", false);
+        console.error("Supabase save error:", error);
+        return;
+      }
+
+      lastRemoteUpdatedAt = now;
+      setOnlineStatus("Online: gespeichert", true);
+    }
+
+    function scheduleOnlineSave() {
+      if (!onlineReady || applyingRemote) return;
+
+      clearTimeout(onlineSaveTimer);
+      onlineSaveTimer = setTimeout(() => {
+        saveToSupabase();
+      }, 700);
+    }
+
+    function subscribeToRealtime() {
+      supabaseClient
+        .channel("shared-list-live")
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "shared_list",
+            filter: "id=eq.1"
+          },
+          payload => {
+            const updatedAt = payload?.new?.updated_at || null;
+            if (updatedAt && updatedAt === lastRemoteUpdatedAt) return;
+
+            try {
+              if (payload?.new?.data) {
+                lastRemoteUpdatedAt = updatedAt;
+                applyData(payload.new.data);
+                setOnlineStatus("Online: Aenderung empfangen", true);
+              }
+            } catch (err) {
+              console.error("Realtime apply error:", err);
+            }
+          }
+        )
+        .subscribe(status => {
+          if (status === "SUBSCRIBED") {
+            setOnlineStatus("Online: live verbunden", true);
+          }
+        });
+    }
+
+    async function initOnlineSync() {
+      try {
+        await loadFromSupabase();
+        subscribeToRealtime();
+      } catch (err) {
+        onlineReady = false;
+        setOnlineStatus("Online-Verbindung fehlgeschlagen", false);
+        console.error("Supabase init error:", err);
+      }
+    }
+
+    syncBtn.addEventListener("click", async () => {
+      try {
+        onlineReady = false;
+        await loadFromSupabase();
+        setOnlineStatus("Online: synchronisiert", true);
+      } catch (err) {
+        setOnlineStatus("Online-Verbindung fehlgeschlagen", false);
+        console.error(err);
+      }
+    });
+
     function collectData() {
       const persons = [...document.querySelectorAll(".person-card")].map(card => ({
         name: card.querySelector(".person-name").value,
@@ -580,6 +733,7 @@
         rebuildPersons(data.persons);
         refreshAllArticleSelects();
         calculateAll();
+        scheduleOnlineSave();
       } catch (err) {
         alert("Die Datei konnte nicht eingelesen werden.");
       } finally {
@@ -606,6 +760,7 @@
     rebuildPersons();
     refreshAllArticleSelects();
     calculateAll();
+    initOnlineSync();
   </script>
 </body>
 </html>
