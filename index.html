@@ -156,10 +156,10 @@
     <div class="toolbar">
       <button type="button" class="save-btn" id="saveBtn">Tabelle speichern</button>
       <button type="button" class="load-btn" id="loadBtn">Tabelle einlesen</button>
-      <button type="button" class="load-btn" id="syncBtn">Online synchronisieren</button>
-      <button type="button" class="save-btn" id="onlineSaveBtn">Online speichern</button>
+      <button type="button" class="load-btn" id="syncBtn">Jetzt aktualisieren</button>
+      <button type="button" class="save-btn" id="onlineSaveBtn">Jetzt online speichern</button>
       <input type="file" id="fileInput" accept=".json,application/json" hidden>
-      <span id="onlineStatus" style="align-self:center;font-weight:bold;color:#667085;">Online: verbindet...</span>
+      <span id="onlineStatus" style="align-self:center;font-weight:bold;color:#667085;">Online: verbindet...</span><span style="align-self:center;color:#667085;font-size:13px;">Automatischer Abgleich alle 2 Sekunden</span>
     </div>
 
     <div id="persons"></div>
@@ -646,6 +646,7 @@
 
     async function checkForOnlineChanges() {
       if (!onlineReady || applyingRemote) return;
+
       try {
         const { data, error } = await supabaseClient
           .from("shared_list")
@@ -655,13 +656,17 @@
 
         if (error) throw error;
 
-        if (data && data.updated_at && data.updated_at !== lastRemoteUpdatedAt && data.data) {
-          lastRemoteUpdatedAt = data.updated_at;
+        if (!data || !data.data) return;
+
+        const remoteStamp = data.updated_at || "";
+        if (remoteStamp !== lastRemoteUpdatedAt) {
+          lastRemoteUpdatedAt = remoteStamp;
           applyData(data.data);
-          setOnlineStatus("Online: synchronisiert", true);
+          setOnlineStatus("Online: automatisch aktualisiert", true);
         }
       } catch (err) {
-        console.error("Online check error:", err);
+        setOnlineStatus("Online: Verbindung pruefen", false);
+        console.error("Automatischer Abgleich fehlgeschlagen:", err);
       }
     }
 
@@ -693,7 +698,7 @@
         )
         .subscribe(status => {
           if (status === "SUBSCRIBED") {
-            setOnlineStatus("Online: live verbunden", true);
+            setOnlineStatus("Online: automatisch verbunden", true);
           }
         });
     }
@@ -717,6 +722,7 @@
         await loadFromSupabase();
         subscribeToRealtime();
         setInterval(checkForOnlineChanges, 2000);
+
       } catch (err) {
         onlineReady = false;
         setOnlineStatus("Online-Verbindung fehlgeschlagen", false);
