@@ -157,6 +157,7 @@
       <button type="button" class="save-btn" id="saveBtn">Tabelle speichern</button>
       <button type="button" class="load-btn" id="loadBtn">Tabelle einlesen</button>
       <button type="button" class="load-btn" id="syncBtn">Online synchronisieren</button>
+      <button type="button" class="save-btn" id="onlineSaveBtn">Online speichern</button>
       <input type="file" id="fileInput" accept=".json,application/json" hidden>
       <span id="onlineStatus" style="align-self:center;font-weight:bold;color:#667085;">Online: verbindet...</span>
     </div>
@@ -221,6 +222,7 @@
     const loadBtn = document.getElementById("loadBtn");
     const fileInput = document.getElementById("fileInput");
     const syncBtn = document.getElementById("syncBtn");
+    const onlineSaveBtn = document.getElementById("onlineSaveBtn");
     const onlineStatus = document.getElementById("onlineStatus");
 
     let onlineReady = false;
@@ -398,7 +400,20 @@
 
         row.querySelector(".delete-btn").addEventListener("click", () => {
           priceItems = priceItems.filter(x => x.id !== item.id);
-          renderPriceList();
+      
+    document.addEventListener("input", event => {
+      if (event.target.matches("input, select")) {
+        scheduleOnlineSave();
+      }
+    });
+
+    document.addEventListener("change", event => {
+      if (event.target.matches("input, select")) {
+        scheduleOnlineSave();
+      }
+    });
+
+    renderPriceList();
           refreshAllArticleSelects();
           calculateAll();
         });
@@ -594,13 +609,15 @@
       setOnlineStatus("Online: speichert...", null);
 
       const now = new Date().toISOString();
-      const { error } = await supabaseClient
+      const { data: savedRow, error } = await supabaseClient
         .from("shared_list")
         .update({
           data: payload,
           updated_at: now
         })
-        .eq("id", 1);
+        .eq("id", 1)
+        .select("id, updated_at")
+        .single();
 
       if (error) {
         setOnlineStatus("Online-Fehler beim Speichern", false);
@@ -608,7 +625,12 @@
         return;
       }
 
-      lastRemoteUpdatedAt = now;
+      if (!savedRow || savedRow.id !== 1) {
+        setOnlineStatus("Online: Datensatz nicht aktualisiert", false);
+        return;
+      }
+
+      lastRemoteUpdatedAt = savedRow.updated_at || now;
       setOnlineStatus("Online: gespeichert", true);
     }
 
@@ -675,6 +697,20 @@
           }
         });
     }
+
+
+    onlineSaveBtn.addEventListener("click", async () => {
+      try {
+        if (!onlineReady) {
+          await loadFromSupabase();
+        }
+        await saveToSupabase();
+        setOnlineStatus("Online: manuell gespeichert", true);
+      } catch (err) {
+        setOnlineStatus("Online-Speichern fehlgeschlagen", false);
+        console.error(err);
+      }
+    });
 
     async function initOnlineSync() {
       try {
