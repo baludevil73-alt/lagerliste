@@ -523,11 +523,36 @@
     }
 
     function rebuildPersons(savedPersons = null) {
+      // Entsperrte Personen merken. Der automatische Online-Abgleich lÃ¤uft alle
+      // 2 Sekunden und baut die Personenbereiche neu auf. Ohne diese Sicherung
+      // wÃ¼rden sie dabei sofort wieder gesperrt.
+      const unlockedStates = [...personsContainer.querySelectorAll(".person-card")].map(card => ({
+        name: card.querySelector(".person-name")?.value || "",
+        password: card.dataset.password || "",
+        unlocked: card.dataset.unlocked === "1"
+      }));
+
       personsContainer.innerHTML = "";
       const personsToBuild = Array.isArray(savedPersons) && savedPersons.length
         ? savedPersons
         : defaultPersons;
-      personsToBuild.forEach((person, idx) => createPerson(idx + 1, person));
+
+      personsToBuild.forEach((person, idx) => {
+        createPerson(idx + 1, person);
+        const card = personsContainer.lastElementChild;
+        const previous = unlockedStates.find(state =>
+          state.name === (person?.name || defaultPersons[idx]?.name || `Person ${idx + 1}`) &&
+          state.password === (person?.password ?? defaultPersons[idx]?.password ?? "")
+        );
+
+        if (previous?.unlocked && card) {
+          setPersonLocked(card, false);
+          const unlockBtn = card.querySelector(".unlock-btn");
+          const lockBtn = card.querySelector(".lock-btn");
+          if (unlockBtn) unlockBtn.style.display = "none";
+          if (lockBtn) lockBtn.style.display = "";
+        }
+      });
       renumberPersons();
     }
 
