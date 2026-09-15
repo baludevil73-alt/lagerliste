@@ -38,6 +38,43 @@
       margin-bottom: 14px;
     }
     .person-header label { font-weight: bold; }
+    .person-lock {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-left: auto;
+    }
+    .person-lock input {
+      padding: 8px 10px;
+      border: 1px solid #bbb;
+      border-radius: 6px;
+      width: 160px;
+    }
+    .unlock-btn { background: #067647; color: #fff; font-weight: bold; }
+    .lock-btn { background: #475467; color: #fff; font-weight: bold; }
+    .lock-state { font-size: 13px; font-weight: bold; color: #b42318; }
+    .person-card.unlocked .lock-state { color: #067647; }
+    .person-card.locked .protected-control {
+      pointer-events: none;
+      opacity: .62;
+    }
+    .person-admin {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: end;
+      margin-top: 12px;
+    }
+    .person-admin label { font-weight: bold; font-size: 13px; }
+    .person-admin input {
+      display: block;
+      margin-top: 4px;
+      padding: 8px 10px;
+      border: 1px solid #bbb;
+      border-radius: 6px;
+    }
+    .remove-person-btn { background: #d92d20; color: #fff; font-weight: bold; }
     .person-name {
       padding: 9px 11px;
       border: 1px solid #bbb;
@@ -185,6 +222,20 @@
       <span id="onlineStatus" style="align-self:center;font-weight:bold;color:#667085;">Online: verbindet...</span><span style="align-self:center;color:#667085;font-size:13px;">Automatischer Abgleich alle 2 Sekunden</span>
     </div>
 
+    <div class="panel">
+      <h2>Personenliste</h2>
+      <div class="person-admin">
+        <label>Name
+          <input type="text" id="newPersonName" placeholder="Neue Person">
+        </label>
+        <label>Passwort
+          <input type="text" id="newPersonPassword" placeholder="Passwort">
+        </label>
+        <button type="button" class="add-btn" id="addPersonBtn">+ Person hinzuf&uuml;gen</button>
+      </div>
+      <div class="hint">Neue Personen k&ouml;nnen hier mit eigenem Passwort angelegt werden. Alle Bereiche bleiben sichtbar; Bearbeiten ist erst nach Entsperren m&ouml;glich.</div>
+    </div>
+
     <div id="persons"></div>
 
     <div class="summary">
@@ -234,8 +285,14 @@
     const SUPABASE_URL = "https://rsyjesffnjwafhiiufgv.supabase.co";
     const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_W1P8RUAbx4W_ecL10PN9uA_SAsZrew6";
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
-    const personCount = 5;
     const startRowsPerPerson = 3;
+    const defaultPersons = [
+      { name: "Person 1", password: "Balu" },
+      { name: "Person 2", password: "Silke" },
+      { name: "Person 3", password: "Nicc" },
+      { name: "Person 4", password: "Philly" },
+      { name: "Person 5", password: "Nuki" }
+    ];
 
     const personsContainer = document.getElementById("persons");
     const summaryPersons = document.getElementById("summaryPersons");
@@ -247,6 +304,9 @@
     const syncBtn = document.getElementById("syncBtn");
     const onlineSaveBtn = document.getElementById("onlineSaveBtn");
     const onlineStatus = document.getElementById("onlineStatus");
+    const addPersonBtn = document.getElementById("addPersonBtn");
+    const newPersonName = document.getElementById("newPersonName");
+    const newPersonPassword = document.getElementById("newPersonPassword");
 
     let onlineReady = false;
     let applyingRemote = false;
@@ -320,26 +380,42 @@
       return row;
     }
 
+    function setPersonLocked(card, locked) {
+      card.classList.toggle("locked", locked);
+      card.classList.toggle("unlocked", !locked);
+      card.dataset.unlocked = locked ? "0" : "1";
+      const state = card.querySelector(".lock-state");
+      if (state) state.textContent = locked ? "Gesperrt" : "Entsperrt";
+      const passwordInput = card.querySelector(".password-entry");
+      if (locked && passwordInput) passwordInput.value = "";
+    }
+
     function createPerson(personIndex, saved = null) {
       const card = document.createElement("div");
-      card.className = "person-card";
+      card.className = "person-card locked";
       card.dataset.person = personIndex;
+      card.dataset.password = saved?.password ?? defaultPersons[personIndex - 1]?.password ?? "";
 
-      // Alte Dateien bleiben kompatibel: falls das Lager bisher je Artikel gespeichert
-      // wurde, wird fÃ¼r die Person die erste vorhandene Lagerangabe Ã¼bernommen.
       const legacyWarehouseRow = saved?.rows?.find(r => r?.warehouse);
       const savedWarehouse = saved?.warehouse || legacyWarehouseRow?.warehouse || "8000";
       const savedCustomCapacity = Number(
         saved?.customCapacity ?? legacyWarehouseRow?.customCapacity ?? 0
       ) || 0;
+      const initialName = saved?.name || defaultPersons[personIndex - 1]?.name || `Person ${personIndex}`;
 
       card.innerHTML = `
         <div class="person-header">
           <label>Name:</label>
-          <input class="person-name" type="text" value="${escapeHtml(saved?.name || `Person ${personIndex}`)}">
+          <input class="person-name protected-control" type="text" value="${escapeHtml(initialName)}">
+          <div class="person-lock">
+            <span class="lock-state">Gesperrt</span>
+            <input type="password" class="password-entry" placeholder="Passwort eingeben">
+            <button type="button" class="unlock-btn">Entsperren</button>
+            <button type="button" class="lock-btn" style="display:none;">Sperren</button>
+          </div>
         </div>
 
-        <div class="person-warehouse">
+        <div class="person-warehouse protected-control">
           <label>Lager:</label>
           <div class="warehouse-box">
             <select class="warehouse">
@@ -366,11 +442,12 @@
                 <th>Aktion</th>
               </tr>
             </thead>
-            <tbody></tbody>
+            <tbody class="protected-control"></tbody>
           </table>
         </div>
 
-        <button type="button" class="add-btn">+ Artikel hinzuf&uuml;gen</button>
+        <button type="button" class="add-btn protected-control">+ Artikel hinzuf&uuml;gen</button>
+        <button type="button" class="remove-person-btn protected-control" style="margin-top:12px;">Person entfernen</button>
 
         <div class="person-total">
           Gr&uuml;ngeld: <span class="person-green-total">0,00 &euro;</span>
@@ -397,17 +474,86 @@
       card.querySelector(".add-btn").addEventListener("click", () => {
         tbody.appendChild(createArticleRow());
         calculateAll();
+        scheduleOnlineSave();
+      });
+
+      const passwordEntry = card.querySelector(".password-entry");
+      const unlockBtn = card.querySelector(".unlock-btn");
+      const lockBtn = card.querySelector(".lock-btn");
+
+      function tryUnlock() {
+        if (passwordEntry.value === card.dataset.password) {
+          setPersonLocked(card, false);
+          unlockBtn.style.display = "none";
+          lockBtn.style.display = "";
+          passwordEntry.value = "";
+        } else {
+          alert("Passwort ist nicht korrekt.");
+        }
+      }
+
+      unlockBtn.addEventListener("click", tryUnlock);
+      passwordEntry.addEventListener("keydown", e => {
+        if (e.key === "Enter") tryUnlock();
+      });
+      lockBtn.addEventListener("click", () => {
+        setPersonLocked(card, true);
+        unlockBtn.style.display = "";
+        lockBtn.style.display = "none";
+      });
+
+      card.querySelector(".remove-person-btn").addEventListener("click", () => {
+        const personName = card.querySelector(".person-name").value || "diese Person";
+        if (confirm(`${personName} wirklich entfernen?`)) {
+          card.remove();
+          renumberPersons();
+          calculateAll();
+          scheduleOnlineSave();
+        }
       });
 
       personsContainer.appendChild(card);
+      setPersonLocked(card, true);
+    }
+
+    function renumberPersons() {
+      [...personsContainer.querySelectorAll(".person-card")].forEach((card, idx) => {
+        card.dataset.person = idx + 1;
+      });
     }
 
     function rebuildPersons(savedPersons = null) {
       personsContainer.innerHTML = "";
-      for (let i = 1; i <= personCount; i++) {
-        createPerson(i, savedPersons?.[i - 1] || null);
-      }
+      const personsToBuild = Array.isArray(savedPersons) && savedPersons.length
+        ? savedPersons
+        : defaultPersons;
+      personsToBuild.forEach((person, idx) => createPerson(idx + 1, person));
+      renumberPersons();
     }
+
+    addPersonBtn.addEventListener("click", () => {
+      const name = newPersonName.value.trim();
+      const password = newPersonPassword.value;
+      if (!name) {
+        alert("Bitte einen Namen eingeben.");
+        return;
+      }
+      if (!password) {
+        alert("Bitte ein Passwort eingeben.");
+        return;
+      }
+      createPerson(personsContainer.querySelectorAll(".person-card").length + 1, {
+        name,
+        password,
+        warehouse: "8000",
+        customCapacity: 0,
+        rows: Array.from({length: startRowsPerPerson}, () => ({}))
+      });
+      newPersonName.value = "";
+      newPersonPassword.value = "";
+      calculateAll();
+      scheduleOnlineSave();
+    });
 
     function renderPriceList() {
       priceListBody.innerHTML = "";
@@ -781,6 +927,7 @@
     function collectData() {
       const persons = [...document.querySelectorAll(".person-card")].map(card => ({
         name: card.querySelector(".person-name").value,
+        password: card.dataset.password || "",
         warehouse: card.querySelector(".warehouse").value,
         customCapacity: Number(card.querySelector(".custom-capacity").value) || 0,
         rows: [...card.querySelectorAll("tbody tr")].map(row => ({
