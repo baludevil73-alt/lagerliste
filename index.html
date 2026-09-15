@@ -109,6 +109,29 @@
       margin-top: 4px;
       white-space: nowrap;
     }
+    .person-warehouse {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin: 0 0 14px;
+    }
+    .person-warehouse label {
+      font-weight: bold;
+      padding-top: 8px;
+    }
+    .warehouse-box {
+      min-width: 260px;
+    }
+    .warehouse-box select,
+    .warehouse-box input {
+      width: 100%;
+      padding: 7px 8px;
+      border: 1px solid #c7c7c7;
+      border-radius: 5px;
+      font-size: 14px;
+      background: #fff;
+    }
     .storage-ok { color: #067647; font-weight: bold; }
     .storage-warning { color: #b42318; font-weight: bold; }
     .custom-capacity { margin-top: 6px; display: none; }
@@ -276,16 +299,6 @@
         <td>
           <input type="number" class="stock-status-input" min="0" step="1" value="${Number(data.stock) || 0}">
         </td>
-        <td>
-          <select class="warehouse">
-            <option value="5000">Lager 5.000 Stk.</option>
-            <option value="8000">Lager 8.000 Stk.</option>
-            <option value="custom">Benutzerdefiniert</option>
-          </select>
-          <input type="number" class="custom-capacity" min="0" step="1"
-                 placeholder="Eigene Lagergr&ouml;&szlig;e" value="${Number(data.customCapacity) || ""}">
-          <div class="storage-info"></div>
-        </td>
         <td class="number unit-price">0,00 &euro;</td>
         <td class="number green-total">0,00 &euro;</td>
         <td>
@@ -297,24 +310,12 @@
         </td>
       `;
 
-      const warehouse = row.querySelector(".warehouse");
-      warehouse.value = data.warehouse || "5000";
-      row.querySelector(".custom-capacity").style.display =
-        warehouse.value === "custom" ? "block" : "none";
-
       row.querySelector(".delete-btn").addEventListener("click", () => {
         row.remove();
         calculateAll();
       });
 
-      warehouse.addEventListener("change", e => {
-        const customInput = row.querySelector(".custom-capacity");
-        customInput.style.display = e.target.value === "custom" ? "block" : "none";
-        calculateAll();
-      });
-
       row.querySelector(".article-select").addEventListener("change", calculateAll);
-      row.querySelector(".custom-capacity").addEventListener("input", calculateAll);
 
       return row;
     }
@@ -324,10 +325,32 @@
       card.className = "person-card";
       card.dataset.person = personIndex;
 
+      // Alte Dateien bleiben kompatibel: falls das Lager bisher je Artikel gespeichert
+      // wurde, wird fÃ¼r die Person die erste vorhandene Lagerangabe Ã¼bernommen.
+      const legacyWarehouseRow = saved?.rows?.find(r => r?.warehouse);
+      const savedWarehouse = saved?.warehouse || legacyWarehouseRow?.warehouse || "8000";
+      const savedCustomCapacity = Number(
+        saved?.customCapacity ?? legacyWarehouseRow?.customCapacity ?? 0
+      ) || 0;
+
       card.innerHTML = `
         <div class="person-header">
           <label>Name:</label>
           <input class="person-name" type="text" value="${escapeHtml(saved?.name || `Person ${personIndex}`)}">
+        </div>
+
+        <div class="person-warehouse">
+          <label>Lager:</label>
+          <div class="warehouse-box">
+            <select class="warehouse">
+              <option value="5000">Lager 5.000 Stk.</option>
+              <option value="8000">Lager 8.000 Stk.</option>
+              <option value="custom">Benutzerdefiniert</option>
+            </select>
+            <input type="number" class="custom-capacity" min="0" step="1"
+                   placeholder="Eigene Lagergr&ouml;&szlig;e" value="${savedCustomCapacity || ""}">
+            <div class="storage-info"></div>
+          </div>
         </div>
 
         <div class="table-wrap">
@@ -336,7 +359,6 @@
               <tr>
                 <th>Artikel</th>
                 <th>Lagerstatus</th>
-                <th>Lager</th>
                 <th>Einzelpreis</th>
                 <th>Gr&uuml;ngeld</th>
                 <th>Sonderpreis</th>
@@ -356,6 +378,17 @@
           Netto-Summe (&minus;30 %): <span class="person-alt-total">0,00 &euro;</span>
         </div>
       `;
+
+      const warehouse = card.querySelector(".warehouse");
+      const customInput = card.querySelector(".custom-capacity");
+      warehouse.value = savedWarehouse;
+      customInput.style.display = warehouse.value === "custom" ? "block" : "none";
+
+      warehouse.addEventListener("change", e => {
+        customInput.style.display = e.target.value === "custom" ? "block" : "none";
+        calculateAll();
+      });
+      customInput.addEventListener("input", calculateAll);
 
       const tbody = card.querySelector("tbody");
       const rows = saved?.rows?.length ? saved.rows : Array.from({length: startRowsPerPerson}, () => ({}));
@@ -452,6 +485,7 @@
         const name = card.querySelector(".person-name").value.trim() || `Person ${personIdx + 1}`;
         let personGreen = 0;
         let personAlt = 0;
+        let personStock = 0;
         let summaryRows = "";
 
         card.querySelectorAll("tbody tr").forEach(row => {
@@ -464,34 +498,13 @@
           const altGross = stock * altPrice;
           const altTotal = altGross * 0.70;
 
+          personStock += stock;
           personGreen += greenTotal;
           personAlt += altTotal;
 
           row.querySelector(".unit-price").textContent = euro(unitPrice);
           row.querySelector(".green-total").textContent = euro(greenTotal);
-          
           row.querySelector(".alt-total").textContent = euro(altTotal);
-
-          const warehouseSelect = row.querySelector(".warehouse");
-          const customCapacity = Math.max(0, parseFloat(row.querySelector(".custom-capacity").value) || 0);
-          const capacity = warehouseSelect.value === "custom"
-            ? customCapacity
-            : parseInt(warehouseSelect.value, 10) || 0;
-
-          const storageInfo = row.querySelector(".storage-info");
-          if (capacity > 0) {
-            const remaining = capacity - stock;
-            if (stock > capacity) {
-              storageInfo.textContent = `\u00dcberf\u00fcllt um ${(stock - capacity).toLocaleString("de-DE")} Stk.`;
-              storageInfo.className = "storage-info storage-warning";
-            } else {
-              storageInfo.textContent = `${stock.toLocaleString("de-DE")} / ${capacity.toLocaleString("de-DE")} Stk. | frei: ${remaining.toLocaleString("de-DE")}`;
-              storageInfo.className = "storage-info storage-ok";
-            }
-          } else {
-            storageInfo.textContent = warehouseSelect.value === "custom" ? "Eigene Lagergr\u00f6\u00dfe eintragen" : "";
-            storageInfo.className = "storage-info";
-          }
 
           if (article) {
             summaryRows += `
@@ -507,6 +520,28 @@
           }
         });
 
+        // Ein einziges Lager pro Person: Summe der BestÃ¤nde aller Artikel.
+        const warehouseSelect = card.querySelector(".warehouse");
+        const customCapacity = Math.max(0, parseFloat(card.querySelector(".custom-capacity").value) || 0);
+        const capacity = warehouseSelect.value === "custom"
+          ? customCapacity
+          : parseInt(warehouseSelect.value, 10) || 0;
+
+        const storageInfo = card.querySelector(".storage-info");
+        if (capacity > 0) {
+          const remaining = capacity - personStock;
+          if (personStock > capacity) {
+            storageInfo.textContent = `ÃœberfÃ¼llt um ${(personStock - capacity).toLocaleString("de-DE")} Stk.`;
+            storageInfo.className = "storage-info storage-warning";
+          } else {
+            storageInfo.textContent = `${personStock.toLocaleString("de-DE")} / ${capacity.toLocaleString("de-DE")} Stk. | frei: ${remaining.toLocaleString("de-DE")}`;
+            storageInfo.className = "storage-info storage-ok";
+          }
+        } else {
+          storageInfo.textContent = warehouseSelect.value === "custom" ? "Eigene LagergrÃ¶ÃŸe eintragen" : "";
+          storageInfo.className = "storage-info";
+        }
+
         grandGreen += personGreen;
         grandAlt += personAlt;
 
@@ -521,6 +556,11 @@
         block.className = "summary-person";
         block.innerHTML = `
           <h3>${escapeHtml(name)}</h3>
+          <div class="storage-info ${personStock <= capacity && capacity > 0 ? "storage-ok" : (capacity > 0 ? "storage-warning" : "")}" style="margin-bottom:10px;">
+            Lager: ${capacity > 0
+              ? `${personStock.toLocaleString("de-DE")} / ${capacity.toLocaleString("de-DE")} Stk. | frei: ${Math.max(0, capacity - personStock).toLocaleString("de-DE")}`
+              : "keine Lagergr&ouml;&szlig;e eingetragen"}
+          </div>
           <div class="table-wrap">
             <table>
               <thead>
@@ -547,10 +587,7 @@
 
       document.getElementById("grandGreenTotal").textContent = euro(grandGreen);
       document.getElementById("grandAltTotal").textContent = euro(grandAlt);
-      
-      
     }
-
 
     function setOnlineStatus(text, ok = null) {
       onlineStatus.textContent = text;
@@ -744,17 +781,17 @@
     function collectData() {
       const persons = [...document.querySelectorAll(".person-card")].map(card => ({
         name: card.querySelector(".person-name").value,
+        warehouse: card.querySelector(".warehouse").value,
+        customCapacity: Number(card.querySelector(".custom-capacity").value) || 0,
         rows: [...card.querySelectorAll("tbody tr")].map(row => ({
           articleId: row.querySelector(".article-select").value,
           stock: Number(row.querySelector(".stock-status-input").value) || 0,
-          warehouse: row.querySelector(".warehouse").value,
-          customCapacity: Number(row.querySelector(".custom-capacity").value) || 0,
           altPrice: Number(row.querySelector(".alt-price-input").value) || 0
         }))
       }));
 
       return {
-        version: 1,
+        version: 2,
         savedAt: new Date().toISOString(),
         priceItems,
         persons
