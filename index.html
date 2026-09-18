@@ -233,6 +233,233 @@
     button { transition:transform .12s ease,filter .12s ease; }
     button:hover { transform:translateY(-1px); filter:brightness(1.03); }
 
+
+    /* Dunklere TabellenflÃ¤chen */
+    .table-wrap {
+      background: #193a5a;
+      border-radius: 8px;
+      padding: 2px;
+    }
+    td {
+      background: #dfe8f1;
+      border-color: #aab9c8;
+    }
+    tbody tr:nth-child(even) td {
+      background: #cfdbe7;
+    }
+    th {
+      background: #0b2239;
+      color: #ffffff;
+      border-color: #34536f;
+    }
+    td input, td select {
+      background: #f7f9fc;
+      color: #162536;
+      border-color: #9bacc0;
+    }
+
+
+    /* ===== VollstÃ¤ndiges Dark-Theme: Dunkelblau / WeiÃŸ / Gelb ===== */
+    body {
+      background: linear-gradient(135deg, #07192b 0%, #0d2944 55%, #123b5f 100%);
+      color: #ffffff;
+    }
+
+    h1, h2, h3, label,
+    .person-total, .summary-person-total, .price-list-total,
+    .grand-total, .price-list-note, .hint {
+      color: #ffffff;
+    }
+
+    .subtitle { color: #ffd84d; }
+
+    .panel, .person-card, .summary {
+      background: #102d49;
+      color: #ffffff;
+      border: 1px solid #34536f;
+      box-shadow: 0 8px 24px rgba(0,0,0,.30);
+    }
+
+    .person-card {
+      border-top: 5px solid #ffd84d;
+    }
+
+    .summary {
+      border: 2px solid #ffd84d;
+    }
+
+    .panel h2, .person-card h2, .summary h2, .summary h3 {
+      color: #ffd84d;
+    }
+
+    .table-wrap {
+      background: #091f34;
+      border: 1px solid #34536f;
+      border-radius: 8px;
+    }
+
+    table { background: #091f34; }
+
+    th {
+      background: #07192b;
+      color: #ffd84d;
+      border-color: #34536f;
+    }
+
+    td, tbody tr:nth-child(even) td {
+      background: #153a5c;
+      color: #ffffff;
+      border-color: #34536f;
+    }
+
+    tbody tr:nth-child(even) td {
+      background: #12324f;
+    }
+
+    td input, td select,
+    .person-name,
+    .warehouse-box select,
+    .warehouse-box input,
+    .person-lock input,
+    .person-admin input {
+      background: #0b243b;
+      color: #ffffff;
+      border: 1px solid #54718d;
+    }
+
+    input::placeholder { color: #aebfd0; }
+
+    select option {
+      background: #0b243b;
+      color: #ffffff;
+    }
+
+    td input:focus, td select:focus,
+    .person-name:focus,
+    .warehouse-box select:focus,
+    .warehouse-box input:focus,
+    .person-lock input:focus,
+    .person-admin input:focus {
+      outline: 3px solid rgba(255,216,77,.32);
+      border-color: #ffd84d;
+    }
+
+    .add-btn, .save-btn, .unlock-btn {
+      background: #ffd84d;
+      color: #07192b;
+      font-weight: bold;
+    }
+
+    .load-btn, .lock-btn {
+      background: #234e70;
+      color: #ffffff;
+      border: 1px solid #5d7891;
+    }
+
+    .delete-btn, .remove-person-btn {
+      background: #8f2d27;
+      color: #ffffff;
+    }
+
+    .storage-ok {
+      color: #ffd84d;
+      font-weight: bold;
+    }
+
+    .storage-warning {
+      color: #ffcfcc;
+      font-weight: bold;
+    }
+
+    .hint, .price-list-note {
+      color: #d7e2ed;
+    }
+
+    .grand-total {
+      color: #ffd84d;
+      border-top-color: #ffd84d;
+    }
+
+    #onlineStatus {
+      background: #0b243b !important;
+      color: #ffffff !important;
+      border: 1px solid #54718d;
+    }
+
+    .toolbar > span:last-child {
+      color: #ffd84d !important;
+    }
+
+    .person-lock .lock-state {
+      background: #0b243b;
+      color: #ffd84d;
+      border: 1px solid #54718d;
+    }
+
+    .person-card.unlocked .lock-state {
+      background: #173e43;
+      color: #ffd84d;
+    }
+
+    .summary-person {
+      border-bottom-color: #34536f;
+    }
+
+    .person-card.locked .protected-control {
+      opacity: .55;
+    }
+
+
+    /* Tabelleninhalt weiÃŸ; Ãœberschriften bleiben gelb */
+    table tbody td,
+    table tbody td.number,
+    table tbody td.actions,
+    table tbody td .storage-info {
+      color: #ffffff !important;
+    }
+
+    table thead th {
+      color: #ffd84d !important;
+    }
+
+    table tbody input,
+    table tbody select {
+      color: #ffffff !important;
+    }
+
+    table tbody input::placeholder {
+      color: #b9c7d5 !important;
+    }
+
+    table tbody select option {
+      color: #ffffff !important;
+      background: #0b243b !important;
+    }
+
+
+    /* Tabelleninhalt in hellem WeiÃŸ; Ãœberschriften bleiben gelb */
+    table tbody td,
+    table tbody td.number,
+    table tbody td.actions,
+    table tbody td .storage-info,
+    table tbody input,
+    table tbody select {
+      color: #f8fbff !important;
+    }
+
+    table tbody input::placeholder {
+      color: #dbe6f0 !important;
+    }
+
+    table tbody select option {
+      color: #f8fbff !important;
+      background: #0b243b !important;
+    }
+
+    table thead th {
+      color: #ffd84d !important;
+    }
+
 </style>
 </head>
 <body>
