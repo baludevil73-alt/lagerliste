@@ -204,7 +204,36 @@
       h1 { font-size: 24px; }
       .grand-total { font-size: 17px; }
     }
-  </style>
+  
+    /* Dunkelblau / Weiss / Gelb */
+    body { background: linear-gradient(135deg,#102a43 0%,#163b63 100%); color:#162536; min-height:100vh; }
+    h1 { color:#fff; }
+    .subtitle { color:#dce9f7; }
+    .panel,.person-card,.summary { background:#fff; border:1px solid rgba(255,255,255,.35); box-shadow:0 8px 24px rgba(4,20,38,.22); }
+    .person-card { border-top:5px solid #ffd84d; }
+    .summary { border:2px solid #ffd84d; }
+    .panel h2,.summary h2,.summary h3 { color:#102a43; }
+    th { background:#102a43; color:#fff; border-color:#234e70; }
+    td { background:#fff; border-color:#d8e2ee; }
+    tbody tr:nth-child(even) td { background:#f5f8fc; }
+    td input,td select,.person-name,.warehouse-box select,.warehouse-box input,.person-lock input,.person-admin input {
+      background:#fff; color:#162536; border-color:#b8c7d8;
+    }
+    td input:focus,td select:focus,.person-name:focus,.warehouse-box select:focus,.warehouse-box input:focus,.person-lock input:focus,.person-admin input:focus {
+      outline:3px solid rgba(255,216,77,.38); border-color:#e6b800;
+    }
+    .add-btn,.save-btn,.unlock-btn { background:#ffd84d; color:#172033; font-weight:bold; }
+    .load-btn,.lock-btn { background:#234e70; color:#fff; }
+    .delete-btn,.remove-person-btn { background:#b42318; color:#fff; }
+    .person-total,.summary-person-total,.price-list-total,.grand-total { color:#102a43; }
+    .grand-total { border-top-color:#e6b800; }
+    .hint,.price-list-note { color:#62758a; }
+    #onlineStatus { background:rgba(255,255,255,.95); padding:7px 10px; border-radius:6px; }
+    .toolbar > span:last-child { color:#e5edf6 !important; }
+    button { transition:transform .12s ease,filter .12s ease; }
+    button:hover { transform:translateY(-1px); filter:brightness(1.03); }
+
+</style>
 </head>
 <body>
   <div class="container">
