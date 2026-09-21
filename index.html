@@ -1218,30 +1218,48 @@
     }
 
 
+    let pendingRemoteData = null;
+    let syncCheckRunning = false;
+    let realtimeChannel = null;
+
+    function isUserActivelyEditing() {
+      const active = document.activeElement;
+      if (!active) return false;
+      if (!active.matches("input, select, textarea")) return false;
+      return !!active.closest(".person-card.unlocked");
+    }
+
     function applyRemoteDataSafely(remoteData) {
       if (!remoteData || !Array.isArray(remoteData.persons)) return;
 
-      // Entsperrte Personen werden lokal weiterbearbeitet und beim Live-Abgleich
-      // nicht neu aufgebaut. Alle anderen Personen werden sofort aktualisiert.
-      // Dadurch sieht jeder fremde Aenderungen direkt, ohne dass die gerade
-      // bearbeitete Tabelle beim Tippen springt oder Eingaben verliert.
-      const localData = collectData();
-      const unlockedByIndex = [...personsContainer.querySelectorAll(".person-card")].map(
-        card => card.dataset.unlocked === "1"
-      );
+      // Nur waehrend wirklich in einem Feld geschrieben/gewaehlt wird, wird
+      // die Remote-Aktualisierung kurz zwischengespeichert. Ein blosses
+      // Entsperren blockiert die Live-Aktualisierung nicht mehr.
+      if (isUserActivelyEditing()) {
+        pendingRemoteData = remoteData;
+        setOnlineStatus("Online: Aenderung wartet bis Eingabe beendet ist", null);
+        return;
+      }
 
-      const merged = {
-        ...remoteData,
-        persons: remoteData.persons.map((person, idx) =>
-          unlockedByIndex[idx] && localData.persons[idx] ? localData.persons[idx] : person
-        )
-      };
-
-      applyData(merged);
+      pendingRemoteData = null;
+      applyData(remoteData);
     }
 
+    function flushPendingRemoteData() {
+      if (!pendingRemoteData || isUserActivelyEditing()) return;
+      const data = pendingRemoteData;
+      pendingRemoteData = null;
+      applyData(data);
+      setOnlineStatus("Online: automatisch aktualisiert", true);
+    }
+
+    document.addEventListener("focusout", () => {
+      setTimeout(flushPendingRemoteData, 0);
+    });
+
     async function checkForOnlineChanges() {
-      if (!onlineReady || applyingRemote) return;
+      if (!onlineReady || applyingRemote || syncCheckRunning) return;
+      syncCheckRunning = true;
 
       try {
         const { data, error } = await supabaseClient
@@ -1251,24 +1269,35 @@
           .single();
 
         if (error) throw error;
-
         if (!data || !data.data) return;
 
         const remoteStamp = data.updated_at || "";
         if (remoteStamp !== lastRemoteUpdatedAt) {
+          // Zeitstempel erst nach Empfang merken. Die Daten werden bei aktiver
+          // Eingabe gepuffert und direkt nach Verlassen des Feldes angewendet.
           lastRemoteUpdatedAt = remoteStamp;
           applyRemoteDataSafely(data.data);
-          setOnlineStatus("Online: automatisch aktualisiert", true);
+          if (!pendingRemoteData) {
+            setOnlineStatus("Online: automatisch aktualisiert", true);
+          }
+        } else {
+          flushPendingRemoteData();
         }
       } catch (err) {
         setOnlineStatus("Online: Verbindung pruefen", false);
         console.error("Automatischer Abgleich fehlgeschlagen:", err);
+      } finally {
+        syncCheckRunning = false;
       }
     }
 
     function subscribeToRealtime() {
-      supabaseClient
-        .channel("shared-list-live")
+      if (realtimeChannel) {
+        try { supabaseClient.removeChannel(realtimeChannel); } catch (e) {}
+      }
+
+      realtimeChannel = supabaseClient
+        .channel("shared-list-live-" + Date.now())
         .on(
           "postgres_changes",
           {
@@ -1285,7 +1314,9 @@
               if (payload?.new?.data) {
                 lastRemoteUpdatedAt = updatedAt;
                 applyRemoteDataSafely(payload.new.data);
-                setOnlineStatus("Online: Aenderung empfangen", true);
+                if (!pendingRemoteData) {
+                  setOnlineStatus("Online: Aenderung empfangen", true);
+                }
               }
             } catch (err) {
               console.error("Realtime apply error:", err);
@@ -1295,6 +1326,8 @@
         .subscribe(status => {
           if (status === "SUBSCRIBED") {
             setOnlineStatus("Online: automatisch verbunden", true);
+          } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+            setOnlineStatus("Online: Live-Verbindung wird neu aufgebaut", false);
           }
         });
     }
@@ -1318,6 +1351,8 @@
         await loadFromSupabase();
         subscribeToRealtime();
         setInterval(checkForOnlineChanges, 1000);
+        window.addEventListener("focus", checkForOnlineChanges);
+        document.addEventListener("visibilitychange", () => { if (!document.hidden) checkForOnlineChanges(); });
 
       } catch (err) {
         onlineReady = false;
