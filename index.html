@@ -749,15 +749,42 @@
       function addExtraTable(data = {}) {
         const wrap = document.createElement("div");
         wrap.className = "extra-table";
+        const extraWarehouse = data.warehouse || "8000";
+        const extraCustomCapacity = Number(data.customCapacity) || 0;
         wrap.innerHTML = `
           <div class="extra-table-header">
             <input type="text" class="extra-table-title" value="${escapeHtml(data.title || "Extratabelle")}" placeholder="Titel der Extratabelle">
             <button type="button" class="delete-btn remove-extra-table-btn">Extratabelle entfernen</button>
           </div>
+          <div class="person-warehouse">
+            <label>Lager:</label>
+            <div class="warehouse-box">
+              <select class="extra-warehouse">
+                <option value="300">Borito 300 Platz</option>
+                <option value="500">Gardian 500 Platz</option>
+                <option value="800">Mule 800 Platz</option>
+                <option value="5000">Lager 5.000 Stk.</option>
+                <option value="8000">Lager 8.000 Stk.</option>
+                <option value="custom">Benutzerdefiniert</option>
+              </select>
+              <input type="number" class="extra-custom-capacity custom-capacity" min="0" step="1" placeholder="Eigene Lagergroesse" value="${extraCustomCapacity || ""}">
+              <div class="extra-storage-info storage-info"></div>
+            </div>
+          </div>
           <div class="table-wrap"><table><thead><tr>
             <th>Artikel</th><th>Lagerstatus</th><th>Einzelpreis</th><th>Gruengeld</th><th>Sonderpreis</th><th>Netto-Summe (-30 %)</th><th>Aktion</th>
           </tr></thead><tbody class="extra-table-body"></tbody></table></div>
           <button type="button" class="add-btn add-extra-row-btn">+ Artikel hinzufuegen</button>`;
+        const extraWarehouseSelect = wrap.querySelector(".extra-warehouse");
+        const extraCustomInput = wrap.querySelector(".extra-custom-capacity");
+        extraWarehouseSelect.value = extraWarehouse;
+        extraCustomInput.style.display = extraWarehouseSelect.value === "custom" ? "block" : "none";
+        extraWarehouseSelect.addEventListener("change", () => {
+          extraCustomInput.style.display = extraWarehouseSelect.value === "custom" ? "block" : "none";
+          calculateAll();
+          scheduleOnlineSave();
+        });
+        extraCustomInput.addEventListener("input", calculateAll);
         const extraBody = wrap.querySelector(".extra-table-body");
         const extraRows = Array.isArray(data.rows) && data.rows.length ? data.rows : [{}];
         extraRows.forEach(r => extraBody.appendChild(createArticleRow(r)));
@@ -957,7 +984,7 @@
         let personStock = 0;
         let summaryRows = "";
 
-        card.querySelectorAll("tbody tr").forEach(row => {
+        card.querySelector(":scope > .table-wrap tbody").querySelectorAll("tr").forEach(row => {
           const article = getPriceItemById(row.querySelector(".article-select").value);
           const stock = Math.max(0, parseFloat(row.querySelector(".stock-status-input").value) || 0);
           const unitPrice = article ? Number(article.price) || 0 : 0;
@@ -1010,6 +1037,46 @@
           storageInfo.textContent = warehouseSelect.value === "custom" ? "Eigene Lagergroesse eintragen" : "";
           storageInfo.className = "storage-info";
         }
+
+        // Jede Extratabelle hat ein eigenes Lager. Nur die Artikel dieser
+        // Extratabelle werden gegen ihre eigene Lagergroesse gerechnet.
+        card.querySelectorAll(".extra-table").forEach(extraTable => {
+          let extraStock = 0;
+          extraTable.querySelectorAll(".extra-table-body tr").forEach(row => {
+            const article = getPriceItemById(row.querySelector(".article-select").value);
+            const stock = Math.max(0, parseFloat(row.querySelector(".stock-status-input").value) || 0);
+            const unitPrice = article ? Number(article.price) || 0 : 0;
+            const altPrice = Math.max(0, parseFloat(row.querySelector(".alt-price-input").value) || 0);
+            const greenTotal = stock * unitPrice;
+            const altTotal = stock * altPrice * 0.70;
+            extraStock += stock;
+            personGreen += greenTotal;
+            personAlt += altTotal;
+            row.querySelector(".unit-price").textContent = euro(unitPrice);
+            row.querySelector(".green-total").textContent = euro(greenTotal);
+            row.querySelector(".alt-total").textContent = euro(altTotal);
+          });
+
+          const extraWarehouseSelect = extraTable.querySelector(".extra-warehouse");
+          const extraCustomCapacity = Math.max(0, parseFloat(extraTable.querySelector(".extra-custom-capacity").value) || 0);
+          const extraCapacity = extraWarehouseSelect.value === "custom"
+            ? extraCustomCapacity
+            : parseInt(extraWarehouseSelect.value, 10) || 0;
+          const extraStorageInfo = extraTable.querySelector(".extra-storage-info");
+          if (extraCapacity > 0) {
+            const extraRemaining = extraCapacity - extraStock;
+            if (extraStock > extraCapacity) {
+              extraStorageInfo.textContent = `Ueberfuellt um ${(extraStock - extraCapacity).toLocaleString("de-DE")} Stk.`;
+              extraStorageInfo.className = "extra-storage-info storage-info storage-warning";
+            } else {
+              extraStorageInfo.textContent = `${extraStock.toLocaleString("de-DE")} / ${extraCapacity.toLocaleString("de-DE")} Stk. | frei: ${extraRemaining.toLocaleString("de-DE")}`;
+              extraStorageInfo.className = "extra-storage-info storage-info storage-ok";
+            }
+          } else {
+            extraStorageInfo.textContent = extraWarehouseSelect.value === "custom" ? "Eigene Lagergroesse eintragen" : "";
+            extraStorageInfo.className = "extra-storage-info storage-info";
+          }
+        });
 
         grandGreen += personGreen;
         grandAlt += personAlt;
@@ -1264,6 +1331,8 @@
         })),
         extraTables: [...card.querySelectorAll(".extra-table")].map(table => ({
           title: table.querySelector(".extra-table-title")?.value || "Extratabelle",
+          warehouse: table.querySelector(".extra-warehouse")?.value || "8000",
+          customCapacity: Number(table.querySelector(".extra-custom-capacity")?.value) || 0,
           rows: [...table.querySelectorAll(".extra-table-body tr")].map(row => ({
             articleId: row.querySelector(".article-select").value,
             stock: Number(row.querySelector(".stock-status-input").value) || 0,
@@ -1273,7 +1342,7 @@
       }));
 
       return {
-        version: 3,
+        version: 4,
         savedAt: new Date().toISOString(),
         priceItems,
         persons
@@ -1336,6 +1405,7 @@
     document.addEventListener("change", e => {
       if (
         e.target.classList.contains("warehouse") ||
+        e.target.classList.contains("extra-warehouse") ||
         e.target.classList.contains("article-select")
       ) calculateAll();
     });
