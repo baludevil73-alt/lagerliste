@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Preis- und Lagerliste â€“ Komplettversion</title>
+  <title>Preis- und Lagerliste</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -460,60 +460,6 @@
       color: #ffd84d !important;
     }
 
-
-    /* Extra-Lager pro Person */
-    .warehouse-section {
-      margin: 14px 0;
-      padding: 14px;
-      background: #0b243b;
-      border: 1px solid #34536f;
-      border-radius: 10px;
-    }
-    .warehouse-section.main-warehouse { border-left: 4px solid #ffd84d; }
-    .warehouse-section.extra-warehouse { border-left: 4px solid #6f8eaa; }
-    .warehouse-section-header {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      flex-wrap: wrap;
-      margin-bottom: 12px;
-    }
-    .warehouse-section-title {
-      color: #ffd84d;
-      font-weight: 800;
-      font-size: 1.05rem;
-      margin-right: auto;
-    }
-    .warehouse-meta {
-      display: grid;
-      grid-template-columns: minmax(160px,1fr) minmax(140px,220px);
-      gap: 10px;
-      margin-bottom: 12px;
-    }
-    .warehouse-meta input {
-      background: #0b243b;
-      color: #f8fbff;
-      border: 1px solid #54718d;
-      border-radius: 6px;
-      padding: 8px 10px;
-    }
-    .warehouse-meta input::placeholder { color: #b9c7d5; }
-    .extra-warehouses { margin-top: 14px; }
-    .add-warehouse-btn {
-      background: #ffd84d;
-      color: #07192b;
-      font-weight: 800;
-      margin-top: 12px;
-    }
-    .remove-warehouse-btn {
-      background: #8f2d27;
-      color: #fff;
-    }
-    .warehouse-section .storage-info { color: #ffd84d; }
-    @media (max-width: 720px) {
-      .warehouse-meta { grid-template-columns: 1fr; }
-    }
-
 </style>
 </head>
 <body>
@@ -597,12 +543,12 @@
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
     const startRowsPerPerson = 3;
     const defaultPersons = [
-  { name: "Balu", password: "Balu" },
-  { name: "Silke", password: "Silke" },
-  { name: "Philly", password: "Philly" },
-  { name: "Nicc", password: "Nicc" },
-  { name: "Nuki", password: "Nuki" }
-];
+      { name: "Person 1", password: "Balu" },
+      { name: "Person 2", password: "Silke" },
+      { name: "Person 3", password: "Nicc" },
+      { name: "Person 4", password: "Philly" },
+      { name: "Person 5", password: "Nuki" }
+    ];
 
     const personsContainer = document.getElementById("persons");
     const summaryPersons = document.getElementById("summaryPersons");
@@ -620,7 +566,6 @@
 
     let onlineReady = false;
     let applyingRemote = false;
-    let localDirty = false;
     let onlineSaveTimer = null;
     let lastRemoteUpdatedAt = null;
 
@@ -701,103 +646,6 @@
       if (locked && passwordInput) passwordInput.value = "";
     }
 
-
-    function warehouseTableHtml() {
-      return `
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Artikel</th>
-                <th>Lagerstatus</th>
-                <th>Einzelpreis</th>
-                <th>Gr&uuml;ngeld</th>
-                <th>Sonderpreis</th>
-                <th>Netto-Summe (&minus;30 %)</th>
-                <th>Aktion</th>
-              </tr>
-            </thead>
-            <tbody class="warehouse-rows protected-control"></tbody>
-          </table>
-        </div>
-        <button type="button" class="add-article-btn add-btn protected-control">+ Artikel hinzuf&uuml;gen</button>
-      `;
-    }
-
-    function createWarehouseSection(card, data = {}, isMain = false) {
-      const section = document.createElement("div");
-      section.className = `warehouse-section ${isMain ? "main-warehouse" : "extra-warehouse"} protected-control`;
-      const warehouseValue = data.warehouse || "8000";
-      const customCapacity = Number(data.customCapacity) || 0;
-      const warehouseName = isMain ? (data.name || "Hauptlager") : (data.name || "");
-      const plate = data.plate || "";
-
-      section.innerHTML = `
-        <div class="warehouse-section-header">
-          <div class="warehouse-section-title">${isMain ? "Hauptlager" : "Extra-Lager"}</div>
-          ${isMain ? "" : `<button type="button" class="remove-warehouse-btn">Extra-Lager entfernen</button>`}
-        </div>
-        <div class="warehouse-meta">
-          <input type="hidden" class="warehouse-name" value="${escapeHtml(warehouseName)}">
-          <input type="text" class="warehouse-plate" value="${escapeHtml(plate)}"
-                 placeholder="Kennzeichen / Info zum Lager">
-        </div>
-        <div class="person-warehouse">
-          <label>Lagergr&ouml;&szlig;e:</label>
-          <div class="warehouse-box">
-            <select class="warehouse">
-              <option value="300">Borito &ndash; 300 Pl&auml;tze</option>
-              <option value="500">Gardian &ndash; 500 Pl&auml;tze</option>
-              <option value="800">Mule &ndash; 800 Pl&auml;tze</option>
-              <option value="5000">Lager 5.000 Stk.</option>
-              <option value="8000">Lager 8.000 Stk.</option>
-              <option value="custom">Benutzerdefiniert</option>
-            </select>
-            <input type="number" class="custom-capacity" min="0" step="1"
-                   placeholder="Eigene Lagergr&ouml;&szlig;e" value="${customCapacity || ""}">
-            <div class="storage-info"></div>
-          </div>
-        </div>
-        ${warehouseTableHtml()}
-      `;
-
-      const warehouse = section.querySelector(".warehouse");
-      const customInput = section.querySelector(".custom-capacity");
-      warehouse.value = warehouseValue;
-      customInput.style.display = warehouse.value === "custom" ? "block" : "none";
-
-      warehouse.addEventListener("change", () => {
-        customInput.style.display = warehouse.value === "custom" ? "block" : "none";
-        calculateAll();
-        scheduleOnlineSave();
-      });
-      customInput.addEventListener("input", calculateAll);
-
-      const tbody = section.querySelector(".warehouse-rows");
-      const rows = data.rows?.length ? data.rows : Array.from({length: startRowsPerPerson}, () => ({}));
-      rows.forEach(r => tbody.appendChild(createArticleRow(r)));
-
-      section.querySelector(".add-article-btn").addEventListener("click", () => {
-        tbody.appendChild(createArticleRow());
-        calculateAll();
-        scheduleOnlineSave();
-      });
-
-      const removeBtn = section.querySelector(".remove-warehouse-btn");
-      if (removeBtn) {
-        removeBtn.addEventListener("click", () => {
-          const name = section.querySelector(".warehouse-name").value.trim() || "dieses Extra-Lager";
-          if (confirm(`${name} wirklich entfernen?`)) {
-            section.remove();
-            calculateAll();
-            scheduleOnlineSave();
-          }
-        });
-      }
-
-      return section;
-    }
-
     function createPerson(personIndex, saved = null) {
       const card = document.createElement("div");
       card.className = "person-card locked";
@@ -805,14 +653,10 @@
       card.dataset.password = saved?.password ?? defaultPersons[personIndex - 1]?.password ?? "";
 
       const legacyWarehouseRow = saved?.rows?.find(r => r?.warehouse);
-      const mainWarehouse = saved?.mainWarehouse || {
-        name: "Hauptlager",
-        plate: saved?.plate || "",
-        warehouse: saved?.warehouse || legacyWarehouseRow?.warehouse || "8000",
-        customCapacity: Number(saved?.customCapacity ?? legacyWarehouseRow?.customCapacity ?? 0) || 0,
-        rows: saved?.rows || []
-      };
-      const extraWarehouses = Array.isArray(saved?.extraWarehouses) ? saved.extraWarehouses : [];
+      const savedWarehouse = saved?.warehouse || legacyWarehouseRow?.warehouse || "800";
+      const savedCustomCapacity = Number(
+        saved?.customCapacity ?? legacyWarehouseRow?.customCapacity ?? 0
+      ) || 0;
       const initialName = saved?.name || defaultPersons[personIndex - 1]?.name || `Person ${personIndex}`;
 
       card.innerHTML = `
@@ -827,8 +671,38 @@
           </div>
         </div>
 
-        <div class="warehouses-container"></div>
-        <button type="button" class="add-warehouse-btn protected-control">+ Extra-Lager hinzuf&uuml;gen</button>
+        <div class="person-warehouse protected-control">
+          <label>Lager:</label>
+          <div class="warehouse-box">
+            <select class="warehouse">
+              <option value="5000">Lager 5.000 Stk.</option>
+              <option value="8000">Lager 8.000 Stk.</option>
+              <option value="custom">Benutzerdefiniert</option>
+            </select>
+            <input type="number" class="custom-capacity" min="0" step="1"
+                   placeholder="Eigene Lagergr&ouml;&szlig;e" value="${savedCustomCapacity || ""}">
+            <div class="storage-info"></div>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Artikel</th>
+                <th>Lagerstatus</th>
+                <th>Einzelpreis</th>
+                <th>Gr&uuml;ngeld</th>
+                <th>Sonderpreis</th>
+                <th>Netto-Summe (&minus;30 %)</th>
+                <th>Aktion</th>
+              </tr>
+            </thead>
+            <tbody class="protected-control"></tbody>
+          </table>
+        </div>
+
+        <button type="button" class="add-btn protected-control">+ Artikel hinzuf&uuml;gen</button>
         <button type="button" class="remove-person-btn protected-control" style="margin-top:12px;">Person entfernen</button>
 
         <div class="person-total">
@@ -838,18 +712,45 @@
         </div>
       `;
 
-      const container = card.querySelector(".warehouses-container");
-      container.appendChild(createWarehouseSection(card, mainWarehouse, true));
-      extraWarehouses.forEach(w => container.appendChild(createWarehouseSection(card, w, false)));
+      const warehouseList = card.querySelector(".warehouse-list");
+      function addWarehouseEntry(entry = {}) {
+        const wrap = document.createElement("div");
+        wrap.style.cssText = "display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;";
+        const value = String(entry.warehouse || "800");
+        const customValue = Number(entry.customCapacity) || 0;
+        wrap.innerHTML = `
+          <select class="warehouse" style="flex:1;min-width:190px;">
+            <option value="300">Borito 300 Platz</option>
+            <option value="500">Gardian 500 Platz</option>
+            <option value="800">Mule 800 Platz</option>
+            <option value="custom">Benutzerdefiniert</option>
+          </select>
+          <input type="number" class="custom-capacity" min="0" step="1" placeholder="Eigene LagergrÃ¶ÃŸe" value="${customValue || ""}" style="flex:1;min-width:170px;">
+          <button type="button" class="delete-btn remove-warehouse-btn">LÃ¶schen</button>`;
+        const select = wrap.querySelector(".warehouse");
+        const custom = wrap.querySelector(".custom-capacity");
+        select.value = ["300","500","800","custom"].includes(value) ? value : "custom";
+        if (!["300","500","800","custom"].includes(value) && !customValue) custom.value = Number(value) || "";
+        custom.style.display = select.value === "custom" ? "block" : "none";
+        select.addEventListener("change", () => { custom.style.display = select.value === "custom" ? "block" : "none"; calculateAll(); scheduleOnlineSave(); });
+        custom.addEventListener("input", () => { calculateAll(); scheduleOnlineSave(); });
+        wrap.querySelector(".remove-warehouse-btn").addEventListener("click", () => {
+          if (warehouseList.children.length > 1) { wrap.remove(); calculateAll(); scheduleOnlineSave(); }
+        });
+        warehouseList.appendChild(wrap);
+      }
+      const savedWarehouses = Array.isArray(saved?.warehouses) && saved.warehouses.length
+        ? saved.warehouses
+        : [{ warehouse: savedWarehouse, customCapacity: savedCustomCapacity }];
+      savedWarehouses.forEach(addWarehouseEntry);
+      card.querySelector(".add-warehouse-btn").addEventListener("click", () => { addWarehouseEntry({warehouse:"800"}); calculateAll(); scheduleOnlineSave(); });
 
-      card.querySelector(".add-warehouse-btn").addEventListener("click", () => {
-        container.appendChild(createWarehouseSection(card, {
-          name: "Extra-Lager",
-          plate: "",
-          warehouse: "8000",
-          customCapacity: 0,
-          rows: []
-        }, false));
+      const tbody = card.querySelector("tbody");
+      const rows = saved?.rows?.length ? saved.rows : Array.from({length: startRowsPerPerson}, () => ({}));
+      rows.forEach(r => tbody.appendChild(createArticleRow(r)));
+
+      card.querySelector(".add-btn").addEventListener("click", () => {
+        tbody.appendChild(createArticleRow());
         calculateAll();
         scheduleOnlineSave();
       });
@@ -880,7 +781,8 @@
       });
 
       card.querySelector(".remove-person-btn").addEventListener("click", () => {
-        if (confirm(`${initialName} wirklich entfernen?`)) {
+        const personName = card.querySelector(".person-name").value || "diese Person";
+        if (confirm(`${personName} wirklich entfernen?`)) {
           card.remove();
           renumberPersons();
           calculateAll();
@@ -890,7 +792,6 @@
 
       personsContainer.appendChild(card);
       setPersonLocked(card, true);
-      calculateAll();
     }
 
     function renumberPersons() {
@@ -910,21 +811,9 @@
       }));
 
       personsContainer.innerHTML = "";
-      // Die fÃ¼nf festen Personen immer vollstÃ¤ndig anzeigen.
-      // Vorhandene Online-Daten werden nach Name Ã¼bernommen; Ã¤ltere Daten notfalls nach Position.
-      const personsToBuild = defaultPersons.map((def, idx) => {
-        const byName = Array.isArray(savedPersons)
-          ? savedPersons.find(p => (p?.name || "").trim().toLowerCase() === def.name.toLowerCase())
-          : null;
-        const legacyByPosition = Array.isArray(savedPersons) ? savedPersons[idx] : null;
-        const source = byName || legacyByPosition || {};
-
-        return {
-          ...source,
-          name: def.name,
-          password: def.password
-        };
-      });
+      const personsToBuild = Array.isArray(savedPersons) && savedPersons.length
+        ? savedPersons
+        : defaultPersons;
 
       personsToBuild.forEach((person, idx) => {
         createPerson(idx + 1, person);
@@ -959,7 +848,7 @@
       createPerson(personsContainer.querySelectorAll(".person-card").length + 1, {
         name,
         password,
-        warehouse: "8000",
+        warehouse: "800",
         customCapacity: 0,
         rows: Array.from({length: startRowsPerPerson}, () => ({}))
       });
@@ -1045,109 +934,110 @@
         const name = card.querySelector(".person-name").value.trim() || `Person ${personIdx + 1}`;
         let personGreen = 0;
         let personAlt = 0;
-        let warehouseSummaries = "";
+        let personStock = 0;
+        let summaryRows = "";
 
-        card.querySelectorAll(".warehouse-section").forEach((section, warehouseIdx) => {
-          let warehouseGreen = 0;
-          let warehouseAlt = 0;
-          let warehouseStock = 0;
-          let summaryRows = "";
+        card.querySelectorAll("tbody tr").forEach(row => {
+          const article = getPriceItemById(row.querySelector(".article-select").value);
+          const stock = Math.max(0, parseFloat(row.querySelector(".stock-status-input").value) || 0);
+          const unitPrice = article ? Number(article.price) || 0 : 0;
+          const altPrice = Math.max(0, parseFloat(row.querySelector(".alt-price-input").value) || 0);
 
-          section.querySelectorAll(".warehouse-rows tr").forEach(row => {
-            const article = getPriceItemById(row.querySelector(".article-select").value);
-            const stock = Math.max(0, parseFloat(row.querySelector(".stock-status-input").value) || 0);
-            const unitPrice = article ? Number(article.price) || 0 : 0;
-            const altPrice = Math.max(0, parseFloat(row.querySelector(".alt-price-input").value) || 0);
-            const greenTotal = stock * unitPrice;
-            const altTotal = stock * altPrice * 0.70;
+          const greenTotal = stock * unitPrice;
+          const altGross = stock * altPrice;
+          const altTotal = altGross * 0.70;
 
-            warehouseStock += stock;
-            warehouseGreen += greenTotal;
-            warehouseAlt += altTotal;
+          personStock += stock;
+          personGreen += greenTotal;
+          personAlt += altTotal;
 
-            row.querySelector(".unit-price").textContent = euro(unitPrice);
-            row.querySelector(".green-total").textContent = euro(greenTotal);
-            row.querySelector(".alt-total").textContent = euro(altTotal);
+          row.querySelector(".unit-price").textContent = euro(unitPrice);
+          row.querySelector(".green-total").textContent = euro(greenTotal);
+          row.querySelector(".alt-total").textContent = euro(altTotal);
 
-            if (article) {
-              summaryRows += `
-                <tr>
-                  <td>${escapeHtml(article.name)}</td>
-                  <td>${stock.toLocaleString("de-DE")}</td>
-                  <td class="number">${euro(unitPrice)}</td>
-                  <td class="number">${euro(greenTotal)}</td>
-                  <td class="number">${euro(altPrice)}</td>
-                  <td class="number">${euro(altTotal)}</td>
-                </tr>`;
-            }
-          });
-
-          const warehouseSelect = section.querySelector(".warehouse");
-          const customCapacity = Math.max(0, parseFloat(section.querySelector(".custom-capacity").value) || 0);
-          const capacity = warehouseSelect.value === "custom" ? customCapacity : (parseInt(warehouseSelect.value, 10) || 0);
-          const storageInfo = section.querySelector(".storage-info");
-
-          if (capacity > 0) {
-            const remaining = capacity - warehouseStock;
-            if (warehouseStock > capacity) {
-              storageInfo.textContent = `ÃœberfÃ¼llt um ${(warehouseStock - capacity).toLocaleString("de-DE")} Stk.`;
-              storageInfo.className = "storage-info storage-warning";
-            } else {
-              storageInfo.textContent = `${warehouseStock.toLocaleString("de-DE")} / ${capacity.toLocaleString("de-DE")} Stk. | frei: ${remaining.toLocaleString("de-DE")}`;
-              storageInfo.className = "storage-info storage-ok";
-            }
-          } else {
-            storageInfo.textContent = warehouseSelect.value === "custom" ? "Eigene LagergrÃ¶ÃŸe eintragen" : "";
-            storageInfo.className = "storage-info";
+          if (article) {
+            summaryRows += `
+              <tr>
+                <td>${escapeHtml(article.name)}</td>
+                <td>${stock.toLocaleString("de-DE")}</td>
+                <td class="number">${euro(unitPrice)}</td>
+                <td class="number">${euro(greenTotal)}</td>
+                <td class="number">${euro(altPrice)}</td>
+                <td class="number">${euro(altTotal)}</td>
+              </tr>
+            `;
           }
-
-          personGreen += warehouseGreen;
-          personAlt += warehouseAlt;
-
-          const warehouseName = section.querySelector(".warehouse-name").value.trim() || (warehouseIdx === 0 ? "Hauptlager" : `Extra-Lager ${warehouseIdx}`);
-          const plate = section.querySelector(".warehouse-plate").value.trim();
-          if (!summaryRows) summaryRows = `<tr><td colspan="6">Noch keine Artikel ausgew&auml;hlt.</td></tr>`;
-
-          warehouseSummaries += `
-            <div style="margin:12px 0 18px;padding:12px;background:#0b243b;border:1px solid #34536f;border-radius:8px;">
-              <h4 style="color:#ffd84d;margin:0 0 8px;">${escapeHtml(warehouseName)}${plate ? ` &nbsp;|&nbsp; Kennzeichen: ${escapeHtml(plate)}` : ""}</h4>
-              <div class="${capacity > 0 && warehouseStock <= capacity ? "storage-ok" : (capacity > 0 ? "storage-warning" : "")}" style="margin-bottom:8px;">
-                Lager: ${capacity > 0
-                  ? `${warehouseStock.toLocaleString("de-DE")} / ${capacity.toLocaleString("de-DE")} Stk. | frei: ${Math.max(0, capacity - warehouseStock).toLocaleString("de-DE")}`
-                  : "keine Lagergr&ouml;&szlig;e eingetragen"}
-              </div>
-              <div class="table-wrap"><table>
-                <thead><tr><th>Artikel</th><th>Lagerstatus</th><th>Einzelpreis</th><th>Gr&uuml;ngeld</th><th>Sonderpreis</th><th>Netto-Summe (&minus;30 %)</th></tr></thead>
-                <tbody>${summaryRows}</tbody>
-              </table></div>
-              <div style="margin-top:8px;color:#f8fbff;">
-                Gr&uuml;ngeld: <strong>${euro(warehouseGreen)}</strong>
-                &nbsp; | &nbsp; Netto-Summe (&minus;30 %): <strong>${euro(warehouseAlt)}</strong>
-              </div>
-            </div>`;
         });
+
+        // Mehrere SpeicherstÃ¤tten pro Person: KapazitÃ¤ten werden addiert.
+        const warehouseEntries = [...card.querySelectorAll(".warehouse-list > div")];
+        const capacity = warehouseEntries.reduce((sum, entry) => {
+          const warehouseSelect = entry.querySelector(".warehouse");
+          const customInput = entry.querySelector(".custom-capacity");
+          const customCapacity = Math.max(0, parseFloat(customInput?.value) || 0);
+          return sum + (warehouseSelect?.value === "custom" ? customCapacity : (parseInt(warehouseSelect?.value, 10) || 0));
+        }, 0);
+
+        const storageInfo = card.querySelector(".storage-info");
+        if (capacity > 0) {
+          const remaining = capacity - personStock;
+          if (personStock > capacity) {
+            storageInfo.textContent = `ÃœberfÃ¼llt um ${(personStock - capacity).toLocaleString("de-DE")} Stk.`;
+            storageInfo.className = "storage-info storage-warning";
+          } else {
+            storageInfo.textContent = `${personStock.toLocaleString("de-DE")} / ${capacity.toLocaleString("de-DE")} Stk. | frei: ${remaining.toLocaleString("de-DE")}`;
+            storageInfo.className = "storage-info storage-ok";
+          }
+        } else {
+          storageInfo.textContent = "LagergrÃ¶ÃŸe eintragen";
+          storageInfo.className = "storage-info";
+        }
 
         grandGreen += personGreen;
         grandAlt += personAlt;
+
         card.querySelector(".person-green-total").textContent = euro(personGreen);
         card.querySelector(".person-alt-total").textContent = euro(personAlt);
+
+        if (!summaryRows) {
+          summaryRows = `<tr><td colspan="6">Noch keine Artikel ausgew&auml;hlt.</td></tr>`;
+        }
 
         const block = document.createElement("div");
         block.className = "summary-person";
         block.innerHTML = `
           <h3>${escapeHtml(name)}</h3>
-          ${warehouseSummaries}
+          <div class="storage-info ${personStock <= capacity && capacity > 0 ? "storage-ok" : (capacity > 0 ? "storage-warning" : "")}" style="margin-bottom:10px;">
+            Lager: ${capacity > 0
+              ? `${personStock.toLocaleString("de-DE")} / ${capacity.toLocaleString("de-DE")} Stk. | frei: ${Math.max(0, capacity - personStock).toLocaleString("de-DE")}`
+              : "keine Lagergr&ouml;&szlig;e eingetragen"}
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Artikel</th>
+                  <th>Lagerstatus</th>
+                  <th>Einzelpreis</th>
+                  <th>Gr&uuml;ngeld</th>
+                  <th>Sonderpreis</th>
+                  <th>Netto-Summe (&minus;30 %)</th>
+                </tr>
+              </thead>
+              <tbody>${summaryRows}</tbody>
+            </table>
+          </div>
           <div class="summary-person-total">
-            Gesamt ${escapeHtml(name)}: Gr&uuml;ngeld ${euro(personGreen)}
-            &nbsp; | &nbsp; Netto-Summe (&minus;30 %) ${euro(personAlt)}
-          </div>`;
+            Gr&uuml;ngeld: ${euro(personGreen)}
+            &nbsp; | &nbsp;
+            Netto-Summe (&minus;30 %): ${euro(personAlt)}
+          </div>
+        `;
         summaryPersons.appendChild(block);
       });
 
-      const grandGreenTarget = document.getElementById("grandGreen");
-      const grandAltTarget = document.getElementById("grandAlt");
-      if (grandGreenTarget) grandGreenTarget.textContent = euro(grandGreen);
-      if (grandAltTarget) grandAltTarget.textContent = euro(grandAlt);
+      document.getElementById("grandGreenTotal").textContent = euro(grandGreen);
+      document.getElementById("grandAltTotal").textContent = euro(grandAlt);
     }
 
     function setOnlineStatus(text, ok = null) {
@@ -1201,48 +1091,49 @@
     }
 
     async function saveToSupabase() {
-      if (!onlineReady || applyingRemote) return false;
+      if (!onlineReady || applyingRemote) return;
 
       const payload = collectData();
       setOnlineStatus("Online: speichert...", null);
 
-      try {
-        const now = new Date().toISOString();
-        const { error } = await supabaseClient
-          .from("shared_list")
-          .update({ data: payload, updated_at: now })
-          .eq("id", 1);
+      const now = new Date().toISOString();
+      const { data: savedRow, error } = await supabaseClient
+        .from("shared_list")
+        .update({
+          data: payload,
+          updated_at: now
+        })
+        .eq("id", 1)
+        .select("id, updated_at")
+        .single();
 
-        if (error) throw error;
-
-        lastRemoteUpdatedAt = now;
-        localDirty = false;
-        setOnlineStatus("Online: gespeichert", true);
-        return true;
-      } catch (err) {
-        localDirty = true;
-        const msg = err?.message || err?.details || err?.hint || String(err);
-        setOnlineStatus("Speicherfehler: " + msg, false);
-        console.error("Supabase save error:", err);
-        return false;
+      if (error) {
+        setOnlineStatus("Online-Fehler beim Speichern", false);
+        console.error("Supabase save error:", error);
+        return;
       }
+
+      if (!savedRow || savedRow.id !== 1) {
+        setOnlineStatus("Online: Datensatz nicht aktualisiert", false);
+        return;
+      }
+
+      lastRemoteUpdatedAt = savedRow.updated_at || now;
+      setOnlineStatus("Online: gespeichert", true);
     }
 
     function scheduleOnlineSave() {
-      if (applyingRemote) return;
-      localDirty = true;
-      if (!onlineReady) return;
+      if (!onlineReady || applyingRemote) return;
 
       clearTimeout(onlineSaveTimer);
-      onlineSaveTimer = setTimeout(async () => {
-        onlineSaveTimer = null;
-        await saveToSupabase();
-      }, 500);
+      onlineSaveTimer = setTimeout(() => {
+        saveToSupabase();
+      }, 700);
     }
 
 
     async function checkForOnlineChanges() {
-      if (!onlineReady || applyingRemote || localDirty || onlineSaveTimer) return;
+      if (!onlineReady || applyingRemote) return;
 
       try {
         const { data, error } = await supabaseClient
@@ -1279,7 +1170,6 @@
             filter: "id=eq.1"
           },
           payload => {
-            if (localDirty || onlineSaveTimer) return;
             const updatedAt = payload?.new?.updated_at || null;
             if (updatedAt && updatedAt === lastRemoteUpdatedAt) return;
 
@@ -1304,14 +1194,13 @@
 
     onlineSaveBtn.addEventListener("click", async () => {
       try {
-        clearTimeout(onlineSaveTimer);
-        onlineSaveTimer = null;
-        if (!onlineReady) await loadFromSupabase();
-        localDirty = true;
+        if (!onlineReady) {
+          await loadFromSupabase();
+        }
         await saveToSupabase();
+        setOnlineStatus("Online: manuell gespeichert", true);
       } catch (err) {
-        const msg = err?.message || err?.details || err?.hint || String(err);
-        setOnlineStatus("Speicherfehler: " + msg, false);
+        setOnlineStatus("Online-Speichern fehlgeschlagen", false);
         console.error(err);
       }
     });
@@ -1324,8 +1213,7 @@
 
       } catch (err) {
         onlineReady = false;
-        const msg = err?.message || err?.details || err?.hint || String(err);
-        setOnlineStatus("Online-Verbindung fehlgeschlagen: " + msg, false);
+        setOnlineStatus("Online-Verbindung fehlgeschlagen", false);
         console.error("Supabase init error:", err);
       }
     }
@@ -1336,40 +1224,28 @@
         await loadFromSupabase();
         setOnlineStatus("Online: synchronisiert", true);
       } catch (err) {
-        const msg = err?.message || err?.details || err?.hint || String(err);
-        setOnlineStatus("Online-Verbindung fehlgeschlagen: " + msg, false);
+        setOnlineStatus("Online-Verbindung fehlgeschlagen", false);
         console.error(err);
       }
     });
 
     function collectData() {
-      const persons = [...document.querySelectorAll(".person-card")].map(card => {
-        const warehouses = [...card.querySelectorAll(".warehouse-section")].map(section => {
-          const rows = [...section.querySelectorAll(".warehouse-rows tr")].map(row => ({
-            articleId: row.querySelector(".article-select")?.value || "",
-            stock: Number(row.querySelector(".stock-status-input")?.value) || 0,
-            altPrice: Number(row.querySelector(".alt-price-input")?.value) || 0
-          }));
-
-          return {
-            name: section.querySelector(".warehouse-name")?.value || "Lager",
-            plate: section.querySelector(".warehouse-plate")?.value || "",
-            warehouse: section.querySelector(".warehouse")?.value || "8000",
-            customCapacity: Number(section.querySelector(".custom-capacity")?.value) || 0,
-            rows
-          };
-        });
-
-        return {
-          name: card.querySelector(".person-name")?.value || "",
-          password: card.dataset.password || "",
-          mainWarehouse: warehouses[0] || null,
-          extraWarehouses: warehouses.slice(1)
-        };
-      });
+      const persons = [...document.querySelectorAll(".person-card")].map(card => ({
+        name: card.querySelector(".person-name").value,
+        password: card.dataset.password || "",
+        warehouses: [...card.querySelectorAll(".warehouse-list > div")].map(entry => ({
+          warehouse: entry.querySelector(".warehouse").value,
+          customCapacity: Number(entry.querySelector(".custom-capacity").value) || 0
+        })),
+        rows: [...card.querySelectorAll("tbody tr")].map(row => ({
+          articleId: row.querySelector(".article-select").value,
+          stock: Number(row.querySelector(".stock-status-input").value) || 0,
+          altPrice: Number(row.querySelector(".alt-price-input").value) || 0
+        }))
+      }));
 
       return {
-        version: 4,
+        version: 3,
         savedAt: new Date().toISOString(),
         priceItems,
         persons
@@ -1454,25 +1330,5 @@
     calculateAll();
     initOnlineSync();
   </script>
-
-<style>
-.warehouse-meta{grid-template-columns:1fr !important}
-.warehouse-plate{width:100%;box-sizing:border-box}
-</style>
-
-<style>
-  .person-card { display:block !important; }
-  .person-card .warehouses-container,
-  .person-card .warehouse-section,
-  .person-card .table-wrap,
-  .person-card table { visibility:visible !important; }
-  .person-card.locked .protected-control {
-    opacity:.72;
-  }
-</style>
-
-<div id="buildVersion" style="position:fixed;right:8px;bottom:8px;z-index:99999;
-background:#07192b;color:#ffd84d;border:1px solid #ffd84d;border-radius:5px;
-padding:4px 7px;font:11px Arial;">Version FIX-2026-09-21-03</div>
 </body>
 </html>
