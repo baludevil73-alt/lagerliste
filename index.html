@@ -597,12 +597,12 @@
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
     const startRowsPerPerson = 3;
     const defaultPersons = [
-      { name: "Person 1", password: "Balu" },
-      { name: "Person 2", password: "Silke" },
-      { name: "Person 3", password: "Nicc" },
-      { name: "Person 4", password: "Philly" },
-      { name: "Person 5", password: "Nuki" }
-    ];
+  { name: "Balu", password: "Balu" },
+  { name: "Silke", password: "Silke" },
+  { name: "Philly", password: "Philly" },
+  { name: "Nicc", password: "Nicc" },
+  { name: "Nuki", password: "Nuki" }
+];
 
     const personsContainer = document.getElementById("persons");
     const summaryPersons = document.getElementById("summaryPersons");
@@ -736,10 +736,8 @@
           <div class="warehouse-section-title">${isMain ? "Hauptlager" : "Extra-Lager"}</div>
           ${isMain ? "" : `<button type="button" class="remove-warehouse-btn">Extra-Lager entfernen</button>`}
         </div>
-        <div class="warehouse-meta" style="grid-template-columns:1fr;">
-          ${isMain
-            ? `<input type="hidden" class="warehouse-name" value="${escapeHtml(warehouseName)}">`
-            : `<input type="hidden" class="warehouse-name" value="">`}
+        <div class="warehouse-meta">
+          <input type="hidden" class="warehouse-name" value="${escapeHtml(warehouseName)}">
           <input type="text" class="warehouse-plate" value="${escapeHtml(plate)}"
                  placeholder="Kennzeichen / Info zum Lager">
         </div>
@@ -747,9 +745,9 @@
           <label>Lagergr&ouml;&szlig;e:</label>
           <div class="warehouse-box">
             <select class="warehouse">
-              <option value="300">Borito â€“ 300 Pl&auml;tze</option>
-              <option value="500">Gardian â€“ 500 Pl&auml;tze</option>
-              <option value="800">Mule â€“ 800 Pl&auml;tze</option>
+              <option value="300">Borito â€“ 300 PlÃ¤tze</option>
+              <option value="500">Gardian â€“ 500 PlÃ¤tze</option>
+              <option value="800">Mule â€“ 800 PlÃ¤tze</option>
               <option value="5000">Lager 5.000 Stk.</option>
               <option value="8000">Lager 8.000 Stk.</option>
               <option value="custom">Benutzerdefiniert</option>
@@ -787,7 +785,7 @@
       const removeBtn = section.querySelector(".remove-warehouse-btn");
       if (removeBtn) {
         removeBtn.addEventListener("click", () => {
-          const name = section.querySelector(".warehouse").selectedOptions[0]?.textContent || "dieses Extra-Lager";
+          const name = section.querySelector(".warehouse-name").value.trim() || "dieses Extra-Lager";
           if (confirm(`${name} wirklich entfernen?`)) {
             section.remove();
             calculateAll();
@@ -845,7 +843,7 @@
 
       card.querySelector(".add-warehouse-btn").addEventListener("click", () => {
         container.appendChild(createWarehouseSection(card, {
-          name: "",
+          name: "Extra-Lager",
           plate: "",
           warehouse: "8000",
           customCapacity: 0,
@@ -911,9 +909,21 @@
       }));
 
       personsContainer.innerHTML = "";
-      const personsToBuild = Array.isArray(savedPersons) && savedPersons.length
-        ? savedPersons
-        : defaultPersons;
+      // Die fÃ¼nf festen Personen immer vollstÃ¤ndig anzeigen.
+      // Vorhandene Online-Daten werden nach Name Ã¼bernommen; Ã¤ltere Daten notfalls nach Position.
+      const personsToBuild = defaultPersons.map((def, idx) => {
+        const byName = Array.isArray(savedPersons)
+          ? savedPersons.find(p => (p?.name || "").trim().toLowerCase() === def.name.toLowerCase())
+          : null;
+        const legacyByPosition = Array.isArray(savedPersons) ? savedPersons[idx] : null;
+        const source = byName || legacyByPosition || {};
+
+        return {
+          ...source,
+          name: def.name,
+          password: def.password
+        };
+      });
 
       personsToBuild.forEach((person, idx) => {
         createPerson(idx + 1, person);
@@ -1093,13 +1103,7 @@
           personGreen += warehouseGreen;
           personAlt += warehouseAlt;
 
-          const selectedWarehouseText = section.querySelector(".warehouse").selectedOptions[0]?.textContent || "";
-          const warehouseName = warehouseIdx === 0
-            ? "Hauptlager"
-            : (selectedWarehouseText.includes("Borito") ? "Borito"
-              : selectedWarehouseText.includes("Gardian") ? "Gardian"
-              : selectedWarehouseText.includes("Mule") ? "Mule"
-              : `Extra-Lager ${warehouseIdx}`);
+          const warehouseName = section.querySelector(".warehouse-name").value.trim() || (warehouseIdx === 0 ? "Hauptlager" : `Extra-Lager ${warehouseIdx}`);
           const plate = section.querySelector(".warehouse-plate").value.trim();
           if (!summaryRows) summaryRows = `<tr><td colspan="6">Noch keine Artikel ausgew&auml;hlt.</td></tr>`;
 
@@ -1440,5 +1444,22 @@
     calculateAll();
     initOnlineSync();
   </script>
+
+<style>
+.warehouse-meta{grid-template-columns:1fr !important}
+.warehouse-plate{width:100%;box-sizing:border-box}
+</style>
+
+<style>
+  .person-card { display:block !important; }
+  .person-card .warehouses-container,
+  .person-card .warehouse-section,
+  .person-card .table-wrap,
+  .person-card table { visibility:visible !important; }
+  .person-card.locked .protected-control {
+    opacity:.72;
+  }
+</style>
+
 </body>
 </html>
