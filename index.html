@@ -1132,8 +1132,19 @@
     }
 
 
+    function isPersonBeingEdited() {
+      // Solange jemand seinen Bereich entsperrt hat oder gerade ein Passwort
+      // eingibt, darf der Online-Abgleich die Personenbereiche nicht neu aufbauen.
+      // Dadurch bleibt z. B. Balu entsperrt, bis die Person selbst auf "Sperren" klickt.
+      const unlocked = [...personsContainer.querySelectorAll(".person-card")]
+        .some(card => card.dataset.unlocked === "1");
+      const passwordInProgress = [...personsContainer.querySelectorAll(".password-entry")]
+        .some(input => input === document.activeElement || input.value.length > 0);
+      return unlocked || passwordInProgress;
+    }
+
     async function checkForOnlineChanges() {
-      if (!onlineReady || applyingRemote) return;
+      if (!onlineReady || applyingRemote || isPersonBeingEdited()) return;
 
       try {
         const { data, error } = await supabaseClient
@@ -1175,6 +1186,10 @@
 
             try {
               if (payload?.new?.data) {
+                if (isPersonBeingEdited()) {
+                  setOnlineStatus("Online: Aktualisierung wartet bis zum Sperren", null);
+                  return;
+                }
                 lastRemoteUpdatedAt = updatedAt;
                 applyData(payload.new.data);
                 setOnlineStatus("Online: Aenderung empfangen", true);
