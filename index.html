@@ -481,7 +481,7 @@
       <button type="button" class="load-btn" id="syncBtn">Jetzt aktualisieren</button>
       <button type="button" class="save-btn" id="onlineSaveBtn">Jetzt online speichern</button>
       <input type="file" id="fileInput" accept=".json,application/json" hidden>
-      <span id="onlineStatus" style="align-self:center;font-weight:bold;color:#667085;">Online: verbindet...</span><span style="align-self:center;color:#667085;font-size:13px;">Automatischer Abgleich alle 2 Sekunden</span>
+      <span id="onlineStatus" style="align-self:center;font-weight:bold;color:#667085;">Online: verbindet...</span><span style="align-self:center;color:#667085;font-size:13px;">Automatischer Abgleich jede Sekunde</span>
     </div>
 
     <div class="panel">
@@ -1218,9 +1218,30 @@
     }
 
 
+    function applyRemoteDataSafely(remoteData) {
+      if (!remoteData || !Array.isArray(remoteData.persons)) return;
+
+      // Entsperrte Personen werden lokal weiterbearbeitet und beim Live-Abgleich
+      // nicht neu aufgebaut. Alle anderen Personen werden sofort aktualisiert.
+      // Dadurch sieht jeder fremde Aenderungen direkt, ohne dass die gerade
+      // bearbeitete Tabelle beim Tippen springt oder Eingaben verliert.
+      const localData = collectData();
+      const unlockedByIndex = [...personsContainer.querySelectorAll(".person-card")].map(
+        card => card.dataset.unlocked === "1"
+      );
+
+      const merged = {
+        ...remoteData,
+        persons: remoteData.persons.map((person, idx) =>
+          unlockedByIndex[idx] && localData.persons[idx] ? localData.persons[idx] : person
+        )
+      };
+
+      applyData(merged);
+    }
+
     async function checkForOnlineChanges() {
       if (!onlineReady || applyingRemote) return;
-      if ([...personsContainer.querySelectorAll(".person-card")].some(card => card.dataset.unlocked === "1")) return;
 
       try {
         const { data, error } = await supabaseClient
@@ -1236,7 +1257,7 @@
         const remoteStamp = data.updated_at || "";
         if (remoteStamp !== lastRemoteUpdatedAt) {
           lastRemoteUpdatedAt = remoteStamp;
-          applyData(data.data);
+          applyRemoteDataSafely(data.data);
           setOnlineStatus("Online: automatisch aktualisiert", true);
         }
       } catch (err) {
@@ -1257,14 +1278,13 @@
             filter: "id=eq.1"
           },
           payload => {
-            if ([...personsContainer.querySelectorAll(".person-card")].some(card => card.dataset.unlocked === "1")) return;
             const updatedAt = payload?.new?.updated_at || null;
             if (updatedAt && updatedAt === lastRemoteUpdatedAt) return;
 
             try {
               if (payload?.new?.data) {
                 lastRemoteUpdatedAt = updatedAt;
-                applyData(payload.new.data);
+                applyRemoteDataSafely(payload.new.data);
                 setOnlineStatus("Online: Aenderung empfangen", true);
               }
             } catch (err) {
@@ -1297,7 +1317,7 @@
       try {
         await loadFromSupabase();
         subscribeToRealtime();
-        setInterval(checkForOnlineChanges, 2000);
+        setInterval(checkForOnlineChanges, 1000);
 
       } catch (err) {
         onlineReady = false;
