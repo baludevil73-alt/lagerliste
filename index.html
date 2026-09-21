@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Preis- und Lagerliste &ndash; Komplettversion</title>
+  <title>Preis- und Lagerliste â€“ Komplettversion</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -620,7 +620,6 @@
 
     let onlineReady = false;
     let applyingRemote = false;
-    let localDirty = false;
     let onlineSaveTimer = null;
     let lastRemoteUpdatedAt = null;
 
@@ -1090,14 +1089,14 @@
           if (capacity > 0) {
             const remaining = capacity - warehouseStock;
             if (warehouseStock > capacity) {
-              storageInfo.textContent = `\u00dcberf\u00fcllt um ${(warehouseStock - capacity).toLocaleString("de-DE")} Stk.`;
+              storageInfo.textContent = `ÃœberfÃ¼llt um ${(warehouseStock - capacity).toLocaleString("de-DE")} Stk.`;
               storageInfo.className = "storage-info storage-warning";
             } else {
               storageInfo.textContent = `${warehouseStock.toLocaleString("de-DE")} / ${capacity.toLocaleString("de-DE")} Stk. | frei: ${remaining.toLocaleString("de-DE")}`;
               storageInfo.className = "storage-info storage-ok";
             }
           } else {
-            storageInfo.textContent = warehouseSelect.value === "custom" ? "Eigene Lagergr\u00f6\u00dfe eintragen" : "";
+            storageInfo.textContent = warehouseSelect.value === "custom" ? "Eigene LagergrÃ¶ÃŸe eintragen" : "";
             storageInfo.className = "storage-info";
           }
 
@@ -1194,76 +1193,54 @@
       }
 
       lastRemoteUpdatedAt = data?.updated_at || null;
-      localDirty = false;
       onlineReady = true;
       setOnlineStatus("Online: synchronisiert", true);
     }
 
-    let saveInProgress = false;
-    let saveAgainAfterCurrent = false;
-
     async function saveToSupabase() {
-      if (!onlineReady || applyingRemote) return false;
+      if (!onlineReady || applyingRemote) return;
 
-      if (saveInProgress) {
-        saveAgainAfterCurrent = true;
-        return true;
-      }
-
-      saveInProgress = true;
       const payload = collectData();
       setOnlineStatus("Online: speichert...", null);
 
-      try {
-        const now = new Date().toISOString();
+      const now = new Date().toISOString();
+      const { data: savedRow, error } = await supabaseClient
+        .from("shared_list")
+        .update({
+          data: payload,
+          updated_at: now
+        })
+        .eq("id", 1)
+        .select("id, updated_at")
+        .single();
 
-        // Kein .select().single() beim Schreiben: Das vermeidet Fehler,
-        // wenn UPDATE erlaubt ist, die RÃ¼ckgabe der geÃ¤nderten Zeile aber nicht.
-        const { error } = await supabaseClient
-          .from("shared_list")
-          .update({
-            data: payload,
-            updated_at: now
-          })
-          .eq("id", 1);
-
-        if (error) throw error;
-
-        lastRemoteUpdatedAt = now;
-        localDirty = false;
-        setOnlineStatus("Online: gespeichert", true);
-        return true;
-      } catch (err) {
-        localDirty = true;
-        const msg = err?.message || err?.details || String(err);
-        setOnlineStatus("Online-Speichern fehlgeschlagen: " + msg, false);
-        console.error("Supabase save error:", err);
-        throw err;
-      } finally {
-        saveInProgress = false;
-        if (saveAgainAfterCurrent) {
-          saveAgainAfterCurrent = false;
-          if (localDirty) setTimeout(() => saveToSupabase().catch(() => {}), 100);
-        }
+      if (error) {
+        setOnlineStatus("Online-Fehler beim Speichern", false);
+        console.error("Supabase save error:", error);
+        return;
       }
+
+      if (!savedRow || savedRow.id !== 1) {
+        setOnlineStatus("Online: Datensatz nicht aktualisiert", false);
+        return;
+      }
+
+      lastRemoteUpdatedAt = savedRow.updated_at || now;
+      setOnlineStatus("Online: gespeichert", true);
     }
 
     function scheduleOnlineSave() {
-      if (applyingRemote) return;
-
-      localDirty = true;
-      if (!onlineReady) return;
+      if (!onlineReady || applyingRemote) return;
 
       clearTimeout(onlineSaveTimer);
       onlineSaveTimer = setTimeout(() => {
-        onlineSaveTimer = null;
-        saveToSupabase().catch(() => {});
-      }, 400);
+        saveToSupabase();
+      }, 700);
     }
 
 
     async function checkForOnlineChanges() {
-      if (!onlineReady || applyingRemote || localDirty || onlineSaveTimer || saveInProgress) return;
+      if (!onlineReady || applyingRemote) return;
 
       try {
         const { data, error } = await supabaseClient
@@ -1300,7 +1277,6 @@
             filter: "id=eq.1"
           },
           payload => {
-            if (localDirty || onlineSaveTimer || saveInProgress) return;
             const updatedAt = payload?.new?.updated_at || null;
             if (updatedAt && updatedAt === lastRemoteUpdatedAt) return;
 
@@ -1325,21 +1301,13 @@
 
     onlineSaveBtn.addEventListener("click", async () => {
       try {
-        clearTimeout(onlineSaveTimer);
-        onlineSaveTimer = null;
-
         if (!onlineReady) {
           await loadFromSupabase();
         }
-
-        // Nach dem Laden bewusst wieder als lokale Ã„nderung markieren,
-        // damit der manuelle Speichervorgang tatsÃ¤chlich ausgefÃ¼hrt wird.
-        localDirty = true;
-        const ok = await saveToSupabase();
-        if (ok) setOnlineStatus("Online: manuell gespeichert", true);
+        await saveToSupabase();
+        setOnlineStatus("Online: manuell gespeichert", true);
       } catch (err) {
-        const msg = err?.message || err?.details || String(err);
-        setOnlineStatus("Online-Speichern fehlgeschlagen: " + msg, false);
+        setOnlineStatus("Online-Speichern fehlgeschlagen", false);
         console.error(err);
       }
     });
@@ -1348,15 +1316,12 @@
       try {
         await loadFromSupabase();
         subscribeToRealtime();
-        setInterval(checkForOnlineChanges, 1000);
-        window.addEventListener("focus", checkForOnlineChanges);
-        document.addEventListener("visibilitychange", () => {
-          if (!document.hidden) checkForOnlineChanges();
-        });
+        setInterval(checkForOnlineChanges, 2000);
 
       } catch (err) {
         onlineReady = false;
-        setOnlineStatus("Online-Verbindung fehlgeschlagen", false);
+        const msg = err?.message || err?.details || err?.hint || String(err);
+        setOnlineStatus("Online-Verbindung fehlgeschlagen: " + msg, false);
         console.error("Supabase init error:", err);
       }
     }
@@ -1367,7 +1332,8 @@
         await loadFromSupabase();
         setOnlineStatus("Online: synchronisiert", true);
       } catch (err) {
-        setOnlineStatus("Online-Verbindung fehlgeschlagen", false);
+        const msg = err?.message || err?.details || err?.hint || String(err);
+        setOnlineStatus("Online-Verbindung fehlgeschlagen: " + msg, false);
         console.error(err);
       }
     });
@@ -1497,5 +1463,8 @@
   }
 </style>
 
+<div id="buildVersion" style="position:fixed;right:8px;bottom:8px;z-index:99999;
+background:#07192b;color:#ffd84d;border:1px solid #ffd84d;border-radius:5px;
+padding:4px 7px;font:11px Arial;">Version FIX-2026-09-21-01</div>
 </body>
 </html>
