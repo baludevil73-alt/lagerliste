@@ -172,6 +172,12 @@
     .storage-ok { color: #067647; font-weight: bold; }
     .storage-warning { color: #b42318; font-weight: bold; }
     .custom-capacity { margin-top: 6px; display: none; }
+    .plate-info { margin: 0 0 14px; }
+    .plate-info label { display:block; font-weight:bold; margin-bottom:6px; }
+    .plate-info input { width:min(420px,100%); padding:8px 10px; border:1px solid #54718d; border-radius:6px; background:#0b243b; color:#fff; }
+    .extra-table { margin-top:16px; padding-top:14px; border-top:1px solid #34536f; }
+    .extra-table-header { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+    .extra-table-title { flex:1; min-width:220px; padding:8px 10px; border:1px solid #54718d; border-radius:6px; background:#0b243b; color:#fff; }
     .summary { border: 2px solid #222; }
     .summary-person {
       margin-bottom: 26px;
@@ -234,7 +240,7 @@
     button:hover { transform:translateY(-1px); filter:brightness(1.03); }
 
 
-    /* Dunklere TabellenflÃ¤chen */
+    /* Dunklere Tabellenflaechen */
     .table-wrap {
       background: #193a5a;
       border-radius: 8px;
@@ -259,7 +265,7 @@
     }
 
 
-    /* ===== VollstÃ¤ndiges Dark-Theme: Dunkelblau / WeiÃŸ / Gelb ===== */
+    /* ===== Vollstaendiges Dark-Theme: Dunkelblau / Weiss / Gelb ===== */
     body {
       background: linear-gradient(135deg, #07192b 0%, #0d2944 55%, #123b5f 100%);
       color: #ffffff;
@@ -410,7 +416,7 @@
     }
 
 
-    /* Tabelleninhalt weiÃŸ; Ãœberschriften bleiben gelb */
+    /* Tabelleninhalt weiss; Ueberschriften bleiben gelb */
     table tbody td,
     table tbody td.number,
     table tbody td.actions,
@@ -437,7 +443,7 @@
     }
 
 
-    /* Tabelleninhalt in hellem WeiÃŸ; Ãœberschriften bleiben gelb */
+    /* Tabelleninhalt in hellem Weiss; Ueberschriften bleiben gelb */
     table tbody td,
     table tbody td.number,
     table tbody td.actions,
@@ -459,14 +465,6 @@
     table thead th {
       color: #ffd84d !important;
     }
-
-
-    /* Zusaetzliche Lager und Kennzeichen */
-    .warehouse-extra { margin-top: 10px; display:flex; gap:12px; flex-wrap:wrap; }
-    .warehouse-extra label { font-weight: normal; padding-top: 0; display:flex; align-items:center; gap:5px; }
-    .warehouse-extra input[type=checkbox] { width:auto; }
-    .warehouse-label-field { margin-bottom: 8px; }
-    .warehouse-label-field label { display:block; padding:0 0 4px; }
 
 </style>
 </head>
@@ -666,8 +664,8 @@
         saved?.customCapacity ?? legacyWarehouseRow?.customCapacity ?? 0
       ) || 0;
       const initialName = saved?.name || defaultPersons[personIndex - 1]?.name || `Person ${personIndex}`;
-      const savedWarehouseLabel = saved?.warehouseLabel || "";
-      const savedExtraWarehouses = Array.isArray(saved?.extraWarehouses) ? saved.extraWarehouses : [];
+      const savedPlate = saved?.plate || "";
+      const savedExtraTables = Array.isArray(saved?.extraTables) ? saved.extraTables : [];
 
       card.innerHTML = `
         <div class="person-header">
@@ -681,25 +679,24 @@
           </div>
         </div>
 
+        <div class="plate-info protected-control">
+          <label>Kennzeichen:</label>
+          <input type="text" class="plate-input" value="${escapeHtml(savedPlate)}" placeholder="Kennzeichen eintragen">
+        </div>
+
         <div class="person-warehouse protected-control">
           <label>Lager:</label>
           <div class="warehouse-box">
-            <div class="warehouse-label-field">
-              <label>Kennzeichen</label>
-              <input type="text" class="warehouse-label" placeholder="z. B. Halle A / Standort 1" value="${escapeHtml(savedWarehouseLabel)}">
-            </div>
             <select class="warehouse">
+              <option value="300">Borito 300 Platz</option>
+              <option value="500">Gardian 500 Platz</option>
+              <option value="800">Mule 800 Platz</option>
               <option value="5000">Lager 5.000 Stk.</option>
               <option value="8000">Lager 8.000 Stk.</option>
               <option value="custom">Benutzerdefiniert</option>
             </select>
             <input type="number" class="custom-capacity" min="0" step="1"
                    placeholder="Eigene Lagergr&ouml;&szlig;e" value="${savedCustomCapacity || ""}">
-            <div class="warehouse-extra">
-              <label><input type="checkbox" class="extra-warehouse" value="300" data-name="Borito" ${savedExtraWarehouses.includes("Borito") ? "checked" : ""}> Borito +300</label>
-              <label><input type="checkbox" class="extra-warehouse" value="500" data-name="Gardian" ${savedExtraWarehouses.includes("Gardian") ? "checked" : ""}> Gardian +500</label>
-              <label><input type="checkbox" class="extra-warehouse" value="800" data-name="Mule" ${savedExtraWarehouses.includes("Mule") ? "checked" : ""}> Mule +800</label>
-            </div>
             <div class="storage-info"></div>
           </div>
         </div>
@@ -722,6 +719,8 @@
         </div>
 
         <button type="button" class="add-btn protected-control">+ Artikel hinzuf&uuml;gen</button>
+        <button type="button" class="add-extra-table-btn add-btn protected-control">+ Extratabelle einfuegen</button>
+        <div class="extra-tables protected-control"></div>
         <button type="button" class="remove-person-btn protected-control" style="margin-top:12px;">Person entfernen</button>
 
         <div class="person-total">
@@ -741,12 +740,33 @@
         calculateAll();
       });
       customInput.addEventListener("input", calculateAll);
-      card.querySelectorAll(".extra-warehouse").forEach(input => input.addEventListener("change", calculateAll));
-      card.querySelector(".warehouse-label").addEventListener("input", calculateAll);
 
       const tbody = card.querySelector("tbody");
       const rows = saved?.rows?.length ? saved.rows : Array.from({length: startRowsPerPerson}, () => ({}));
       rows.forEach(r => tbody.appendChild(createArticleRow(r)));
+
+      const extraTablesContainer = card.querySelector(".extra-tables");
+      function addExtraTable(data = {}) {
+        const wrap = document.createElement("div");
+        wrap.className = "extra-table";
+        wrap.innerHTML = `
+          <div class="extra-table-header">
+            <input type="text" class="extra-table-title" value="${escapeHtml(data.title || "Extratabelle")}" placeholder="Titel der Extratabelle">
+            <button type="button" class="delete-btn remove-extra-table-btn">Extratabelle entfernen</button>
+          </div>
+          <div class="table-wrap"><table><thead><tr>
+            <th>Artikel</th><th>Lagerstatus</th><th>Einzelpreis</th><th>Gruengeld</th><th>Sonderpreis</th><th>Netto-Summe (-30 %)</th><th>Aktion</th>
+          </tr></thead><tbody class="extra-table-body"></tbody></table></div>
+          <button type="button" class="add-btn add-extra-row-btn">+ Artikel hinzufuegen</button>`;
+        const extraBody = wrap.querySelector(".extra-table-body");
+        const extraRows = Array.isArray(data.rows) && data.rows.length ? data.rows : [{}];
+        extraRows.forEach(r => extraBody.appendChild(createArticleRow(r)));
+        wrap.querySelector(".add-extra-row-btn").addEventListener("click", () => { extraBody.appendChild(createArticleRow()); calculateAll(); scheduleOnlineSave(); });
+        wrap.querySelector(".remove-extra-table-btn").addEventListener("click", () => { wrap.remove(); calculateAll(); scheduleOnlineSave(); });
+        extraTablesContainer.appendChild(wrap);
+      }
+      savedExtraTables.forEach(addExtraTable);
+      card.querySelector(".add-extra-table-btn").addEventListener("click", () => { addExtraTable(); calculateAll(); scheduleOnlineSave(); });
 
       card.querySelector(".add-btn").addEventListener("click", () => {
         tbody.appendChild(createArticleRow());
@@ -764,6 +784,7 @@
           unlockBtn.style.display = "none";
           lockBtn.style.display = "";
           passwordEntry.value = "";
+          card.dataset.editingSince = Date.now();
         } else {
           alert("Passwort ist nicht korrekt.");
         }
@@ -800,9 +821,9 @@
     }
 
     function rebuildPersons(savedPersons = null) {
-      // Entsperrte Personen merken. Der automatische Online-Abgleich lÃ¤uft alle
+      // Entsperrte Personen merken. Der automatische Online-Abgleich laeuft alle
       // 2 Sekunden und baut die Personenbereiche neu auf. Ohne diese Sicherung
-      // wÃ¼rden sie dabei sofort wieder gesperrt.
+      // wuerden sie dabei sofort wieder gesperrt.
       const unlockedStates = [...personsContainer.querySelectorAll(".person-card")].map(card => ({
         name: card.querySelector(".person-name")?.value || "",
         password: card.dataset.password || "",
@@ -817,11 +838,10 @@
       personsToBuild.forEach((person, idx) => {
         createPerson(idx + 1, person);
         const card = personsContainer.lastElementChild;
-        const targetPassword = person?.password ?? defaultPersons[idx]?.password ?? "";
-        const targetName = person?.name || defaultPersons[idx]?.name || `Person ${idx + 1}`;
-        const previous = unlockedStates[idx]?.password === targetPassword
-          ? unlockedStates[idx]
-          : unlockedStates.find(state => state.name === targetName && state.password === targetPassword);
+        const previous = unlockedStates.find(state =>
+          state.name === (person?.name || defaultPersons[idx]?.name || `Person ${idx + 1}`) &&
+          state.password === (person?.password ?? defaultPersons[idx]?.password ?? "")
+        );
 
         if (previous?.unlocked && card) {
           setPersonLocked(card, false);
@@ -969,29 +989,25 @@
           }
         });
 
-        // Ein einziges Lager pro Person: Summe der BestÃ¤nde aller Artikel.
+        // Ein einziges Lager pro Person: Summe der Bestaende aller Artikel.
         const warehouseSelect = card.querySelector(".warehouse");
         const customCapacity = Math.max(0, parseFloat(card.querySelector(".custom-capacity").value) || 0);
-        const baseCapacity = warehouseSelect.value === "custom"
+        const capacity = warehouseSelect.value === "custom"
           ? customCapacity
           : parseInt(warehouseSelect.value, 10) || 0;
-        const extraCapacity = [...card.querySelectorAll(".extra-warehouse:checked")]
-          .reduce((sum, input) => sum + (parseInt(input.value, 10) || 0), 0);
-        const capacity = baseCapacity + extraCapacity;
-        const warehouseLabel = card.querySelector(".warehouse-label")?.value.trim() || "";
 
         const storageInfo = card.querySelector(".storage-info");
         if (capacity > 0) {
           const remaining = capacity - personStock;
           if (personStock > capacity) {
-            storageInfo.textContent = `ÃœberfÃ¼llt um ${(personStock - capacity).toLocaleString("de-DE")} Stk.`;
+            storageInfo.textContent = `Ueberfuellt um ${(personStock - capacity).toLocaleString("de-DE")} Stk.`;
             storageInfo.className = "storage-info storage-warning";
           } else {
             storageInfo.textContent = `${personStock.toLocaleString("de-DE")} / ${capacity.toLocaleString("de-DE")} Stk. | frei: ${remaining.toLocaleString("de-DE")}`;
             storageInfo.className = "storage-info storage-ok";
           }
         } else {
-          storageInfo.textContent = warehouseSelect.value === "custom" ? "Eigene LagergrÃ¶ÃŸe eintragen" : "";
+          storageInfo.textContent = warehouseSelect.value === "custom" ? "Eigene Lagergroesse eintragen" : "";
           storageInfo.className = "storage-info";
         }
 
@@ -1009,8 +1025,9 @@
         block.className = "summary-person";
         block.innerHTML = `
           <h3>${escapeHtml(name)}</h3>
+          <div class="storage-info" style="margin-bottom:8px;">Kennzeichen: ${escapeHtml(card.querySelector(".plate-input")?.value || "-")}</div>
           <div class="storage-info ${personStock <= capacity && capacity > 0 ? "storage-ok" : (capacity > 0 ? "storage-warning" : "")}" style="margin-bottom:10px;">
-            ${warehouseLabel ? `Kennzeichen: ${escapeHtml(warehouseLabel)} | ` : ""}Lager: ${capacity > 0
+            Lager: ${capacity > 0
               ? `${personStock.toLocaleString("de-DE")} / ${capacity.toLocaleString("de-DE")} Stk. | frei: ${Math.max(0, capacity - personStock).toLocaleString("de-DE")}`
               : "keine Lagergr&ouml;&szlig;e eingetragen"}
           </div>
@@ -1136,6 +1153,7 @@
 
     async function checkForOnlineChanges() {
       if (!onlineReady || applyingRemote) return;
+      if ([...personsContainer.querySelectorAll(".person-card")].some(card => card.dataset.unlocked === "1")) return;
 
       try {
         const { data, error } = await supabaseClient
@@ -1172,6 +1190,7 @@
             filter: "id=eq.1"
           },
           payload => {
+            if ([...personsContainer.querySelectorAll(".person-card")].some(card => card.dataset.unlocked === "1")) return;
             const updatedAt = payload?.new?.updated_at || null;
             if (updatedAt && updatedAt === lastRemoteUpdatedAt) return;
 
@@ -1237,12 +1256,19 @@
         password: card.dataset.password || "",
         warehouse: card.querySelector(".warehouse").value,
         customCapacity: Number(card.querySelector(".custom-capacity").value) || 0,
-        warehouseLabel: card.querySelector(".warehouse-label")?.value || "",
-        extraWarehouses: [...card.querySelectorAll(".extra-warehouse:checked")].map(input => input.dataset.name),
-        rows: [...card.querySelectorAll("tbody tr")].map(row => ({
+        plate: card.querySelector(".plate-input")?.value || "",
+        rows: [...card.querySelector(":scope > .table-wrap tbody").querySelectorAll("tr")].map(row => ({
           articleId: row.querySelector(".article-select").value,
           stock: Number(row.querySelector(".stock-status-input").value) || 0,
           altPrice: Number(row.querySelector(".alt-price-input").value) || 0
+        })),
+        extraTables: [...card.querySelectorAll(".extra-table")].map(table => ({
+          title: table.querySelector(".extra-table-title")?.value || "Extratabelle",
+          rows: [...table.querySelectorAll(".extra-table-body tr")].map(row => ({
+            articleId: row.querySelector(".article-select").value,
+            stock: Number(row.querySelector(".stock-status-input").value) || 0,
+            altPrice: Number(row.querySelector(".alt-price-input").value) || 0
+          }))
         }))
       }));
 
@@ -1303,16 +1329,14 @@
       if (
         e.target.classList.contains("stock-status-input") ||
         e.target.classList.contains("alt-price-input") ||
-        e.target.classList.contains("person-name") ||
-        e.target.classList.contains("warehouse-label")
+        e.target.classList.contains("person-name")
       ) calculateAll();
     });
 
     document.addEventListener("change", e => {
       if (
         e.target.classList.contains("warehouse") ||
-        e.target.classList.contains("article-select") ||
-        e.target.classList.contains("extra-warehouse")
+        e.target.classList.contains("article-select")
       ) calculateAll();
     });
 
