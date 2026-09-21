@@ -172,11 +172,6 @@
     .storage-ok { color: #067647; font-weight: bold; }
     .storage-warning { color: #b42318; font-weight: bold; }
     .custom-capacity { margin-top: 6px; display: none; }
-    .warehouse-list { display: flex; flex-direction: column; gap: 10px; flex: 1; }
-    .warehouse-row { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; }
-    .warehouse-row .warehouse-box { flex: 1; }
-    .remove-warehouse-btn { background: #8f2d27; color: #fff; font-weight: bold; margin-top: 0; }
-    .add-warehouse-btn { background: #ffd84d; color: #07192b; font-weight: bold; }
     .summary { border: 2px solid #222; }
     .summary-person {
       margin-bottom: 26px;
@@ -573,6 +568,7 @@
     let applyingRemote = false;
     let onlineSaveTimer = null;
     let lastRemoteUpdatedAt = null;
+    const locallyUnlockedPasswords = new Set();
 
     let priceItems = [
       { id: crypto.randomUUID(), name: "Artikel 1", price: 0 },
@@ -658,12 +654,10 @@
       card.dataset.password = saved?.password ?? defaultPersons[personIndex - 1]?.password ?? "";
 
       const legacyWarehouseRow = saved?.rows?.find(r => r?.warehouse);
-      const savedWarehouses = Array.isArray(saved?.warehouses) && saved.warehouses.length
-        ? saved.warehouses
-        : [{
-            warehouse: saved?.warehouse || legacyWarehouseRow?.warehouse || "800",
-            customCapacity: Number(saved?.customCapacity ?? legacyWarehouseRow?.customCapacity ?? 0) || 0
-          }];
+      const savedWarehouse = saved?.warehouse || legacyWarehouseRow?.warehouse || "8000";
+      const savedCustomCapacity = Number(
+        saved?.customCapacity ?? legacyWarehouseRow?.customCapacity ?? 0
+      ) || 0;
       const initialName = saved?.name || defaultPersons[personIndex - 1]?.name || `Person ${personIndex}`;
 
       card.innerHTML = `
@@ -679,9 +673,35 @@
         </div>
 
         <div class="person-warehouse protected-control">
-          <label>LagergrÃ¶ÃŸe:</label>
-          <div class="warehouse-list"></div>
-          <button type="button" class="add-warehouse-btn">+ SpeicherstÃ¤tte hinzufÃ¼gen</button>
+          <label>Lager:</label>
+          <div class="warehouse-box">
+            <select class="warehouse">
+              <option value="300">Borito 300 Platz</option>
+              <option value="500">Gardian 500 Platz</option>
+              <option value="800">Mule 800 Platz</option>
+              <option value="5000">Lager 5.000 Stk.</option>
+              <option value="8000">Lager 8.000 Stk.</option>
+              <option value="custom">Benutzerdefiniert</option>
+            </select>
+            <input type="number" class="custom-capacity" min="0" step="1"
+                   placeholder="Eigene Lagergr&ouml;&szlig;e" value="${savedCustomCapacity || ""}">
+            <div class="storage-info"></div>
+          </div>
+          <label style="padding-top:8px;">Extra-Lager:</label>
+          <div class="warehouse-box">
+            <select class="extra-warehouse">
+              <option value="0">Kein Extra-Lager</option>
+              <option value="300">Borito 300 Platz</option>
+              <option value="500">Gardian 500 Platz</option>
+              <option value="800">Mule 800 Platz</option>
+              <option value="5000">Lager 5.000 Stk.</option>
+              <option value="8000">Lager 8.000 Stk.</option>
+              <option value="custom">Benutzerdefiniert</option>
+            </select>
+            <input type="number" class="extra-custom-capacity custom-capacity" min="0" step="1"
+                   placeholder="Eigene Extra-LagergrÃ¶ÃŸe" value="${Number(saved?.extraCustomCapacity) || ""}">
+            <div class="extra-storage-info storage-info"></div>
+          </div>
         </div>
 
         <div class="table-wrap">
@@ -711,55 +731,27 @@
         </div>
       `;
 
-      const warehouseList = card.querySelector(".warehouse-list");
+      const warehouse = card.querySelector(".warehouse");
+      const customInput = card.querySelector(".custom-capacity");
+      warehouse.value = savedWarehouse;
+      customInput.style.display = warehouse.value === "custom" ? "block" : "none";
 
-      function addWarehouseRow(data = {}) {
-        const row = document.createElement("div");
-        row.className = "warehouse-row";
-        const selected = String(data.warehouse || "800");
-        const customCapacity = Number(data.customCapacity) || 0;
-        row.innerHTML = `
-          <div class="warehouse-box">
-            <select class="warehouse">
-              <option value="300">Borito 300 Platz</option>
-              <option value="500">Gardian 500 Platz</option>
-              <option value="800">Mule 800 Platz</option>
-              <option value="custom">Benutzerdefiniert</option>
-            </select>
-            <input type="number" class="custom-capacity" min="0" step="1"
-                   placeholder="Eigene LagergrÃ¶ÃŸe" value="${customCapacity || ""}">
-            <div class="storage-info"></div>
-          </div>
-          <button type="button" class="remove-warehouse-btn">SpeicherstÃ¤tte entfernen</button>
-        `;
-        const warehouse = row.querySelector(".warehouse");
-        const customInput = row.querySelector(".custom-capacity");
-        warehouse.value = ["300", "500", "800", "custom"].includes(selected) ? selected : "custom";
-        if (warehouse.value === "custom" && !customCapacity && !["300", "500", "800"].includes(selected)) {
-          customInput.value = Number(selected) || "";
-        }
-        customInput.style.display = warehouse.value === "custom" ? "block" : "none";
-        warehouse.addEventListener("change", e => {
-          customInput.style.display = e.target.value === "custom" ? "block" : "none";
-          calculateAll();
-          scheduleOnlineSave();
-        });
-        customInput.addEventListener("input", calculateAll);
-        row.querySelector(".remove-warehouse-btn").addEventListener("click", () => {
-          if (warehouseList.querySelectorAll(".warehouse-row").length <= 1) return;
-          row.remove();
-          calculateAll();
-          scheduleOnlineSave();
-        });
-        warehouseList.appendChild(row);
-      }
-
-      savedWarehouses.forEach(addWarehouseRow);
-      card.querySelector(".add-warehouse-btn").addEventListener("click", () => {
-        addWarehouseRow({ warehouse: "800", customCapacity: 0 });
+      warehouse.addEventListener("change", e => {
+        customInput.style.display = e.target.value === "custom" ? "block" : "none";
         calculateAll();
-        scheduleOnlineSave();
       });
+      customInput.addEventListener("input", calculateAll);
+
+      const extraWarehouse = card.querySelector(".extra-warehouse");
+      const extraCustomInput = card.querySelector(".extra-custom-capacity");
+      const savedExtraWarehouse = saved?.extraWarehouse || "0";
+      extraWarehouse.value = savedExtraWarehouse;
+      extraCustomInput.style.display = extraWarehouse.value === "custom" ? "block" : "none";
+      extraWarehouse.addEventListener("change", e => {
+        extraCustomInput.style.display = e.target.value === "custom" ? "block" : "none";
+        calculateAll();
+      });
+      extraCustomInput.addEventListener("input", calculateAll);
 
       const tbody = card.querySelector("tbody");
       const rows = saved?.rows?.length ? saved.rows : Array.from({length: startRowsPerPerson}, () => ({}));
@@ -778,6 +770,7 @@
       function tryUnlock() {
         if (passwordEntry.value === card.dataset.password) {
           setPersonLocked(card, false);
+          locallyUnlockedPasswords.add(card.dataset.password || "");
           unlockBtn.style.display = "none";
           lockBtn.style.display = "";
           passwordEntry.value = "";
@@ -792,6 +785,7 @@
       });
       lockBtn.addEventListener("click", () => {
         setPersonLocked(card, true);
+        locallyUnlockedPasswords.delete(card.dataset.password || "");
         unlockBtn.style.display = "";
         lockBtn.style.display = "none";
       });
@@ -839,7 +833,7 @@
           state.password === (person?.password ?? defaultPersons[idx]?.password ?? "")
         );
 
-        if (previous?.unlocked && card) {
+        if ((previous?.unlocked || locallyUnlockedPasswords.has(card?.dataset.password || "")) && card) {
           setPersonLocked(card, false);
           const unlockBtn = card.querySelector(".unlock-btn");
           const lockBtn = card.querySelector(".lock-btn");
@@ -864,7 +858,10 @@
       createPerson(personsContainer.querySelectorAll(".person-card").length + 1, {
         name,
         password,
-        warehouses: [{ warehouse: "800", customCapacity: 0 }],
+        warehouse: "8000",
+        customCapacity: 0,
+        extraWarehouse: "0",
+        extraCustomCapacity: 0,
         rows: Array.from({length: startRowsPerPerson}, () => ({}))
       });
       newPersonName.value = "";
@@ -984,24 +981,36 @@
           }
         });
 
-        // Mehrere SpeicherstÃ¤tten pro Person: KapazitÃ¤ten werden addiert.
-        let capacity = 0;
-        card.querySelectorAll(".warehouse-row").forEach(warehouseRow => {
-          const warehouseSelect = warehouseRow.querySelector(".warehouse");
-          const customInput = warehouseRow.querySelector(".custom-capacity");
-          const rowCapacity = warehouseSelect.value === "custom"
-            ? Math.max(0, parseFloat(customInput.value) || 0)
-            : parseInt(warehouseSelect.value, 10) || 0;
-          capacity += rowCapacity;
-          const storageInfo = warehouseRow.querySelector(".storage-info");
-          if (rowCapacity > 0) {
-            storageInfo.textContent = `KapazitÃ¤t: ${rowCapacity.toLocaleString("de-DE")} Platz`;
-            storageInfo.className = "storage-info storage-ok";
+        // Ein einziges Lager pro Person: Summe der BestÃ¤nde aller Artikel.
+        const warehouseSelect = card.querySelector(".warehouse");
+        const customCapacity = Math.max(0, parseFloat(card.querySelector(".custom-capacity").value) || 0);
+        const mainCapacity = warehouseSelect.value === "custom"
+          ? customCapacity
+          : parseInt(warehouseSelect.value, 10) || 0;
+        const extraWarehouseSelect = card.querySelector(".extra-warehouse");
+        const extraCustomCapacity = Math.max(0, parseFloat(card.querySelector(".extra-custom-capacity").value) || 0);
+        const extraCapacity = extraWarehouseSelect.value === "custom"
+          ? extraCustomCapacity
+          : parseInt(extraWarehouseSelect.value, 10) || 0;
+        const capacity = mainCapacity + extraCapacity;
+
+        const storageInfo = card.querySelector(".storage-info");
+        const extraStorageInfo = card.querySelector(".extra-storage-info");
+        extraStorageInfo.textContent = extraCapacity > 0 ? `Extra-Lager: ${extraCapacity.toLocaleString("de-DE")} Platz` : "Kein Extra-Lager";
+        extraStorageInfo.className = "extra-storage-info storage-info " + (extraCapacity > 0 ? "storage-ok" : "");
+        if (capacity > 0) {
+          const remaining = capacity - personStock;
+          if (personStock > capacity) {
+            storageInfo.textContent = `ÃœberfÃ¼llt um ${(personStock - capacity).toLocaleString("de-DE")} Stk.`;
+            storageInfo.className = "storage-info storage-warning";
           } else {
-            storageInfo.textContent = warehouseSelect.value === "custom" ? "Eigene LagergrÃ¶ÃŸe eintragen" : "";
-            storageInfo.className = "storage-info";
+            storageInfo.textContent = `${personStock.toLocaleString("de-DE")} / ${capacity.toLocaleString("de-DE")} Stk. | frei: ${remaining.toLocaleString("de-DE")}`;
+            storageInfo.className = "storage-info storage-ok";
           }
-        });
+        } else {
+          storageInfo.textContent = warehouseSelect.value === "custom" ? "Eigene LagergrÃ¶ÃŸe eintragen" : "";
+          storageInfo.className = "storage-info";
+        }
 
         grandGreen += personGreen;
         grandAlt += personAlt;
@@ -1243,10 +1252,10 @@
       const persons = [...document.querySelectorAll(".person-card")].map(card => ({
         name: card.querySelector(".person-name").value,
         password: card.dataset.password || "",
-        warehouses: [...card.querySelectorAll(".warehouse-row")].map(warehouseRow => ({
-          warehouse: warehouseRow.querySelector(".warehouse").value,
-          customCapacity: Number(warehouseRow.querySelector(".custom-capacity").value) || 0
-        })),
+        warehouse: card.querySelector(".warehouse").value,
+        customCapacity: Number(card.querySelector(".warehouse-box .custom-capacity").value) || 0,
+        extraWarehouse: card.querySelector(".extra-warehouse").value,
+        extraCustomCapacity: Number(card.querySelector(".extra-custom-capacity").value) || 0,
         rows: [...card.querySelectorAll("tbody tr")].map(row => ({
           articleId: row.querySelector(".article-select").value,
           stock: Number(row.querySelector(".stock-status-input").value) || 0,
