@@ -172,6 +172,11 @@
     .storage-ok { color: #067647; font-weight: bold; }
     .storage-warning { color: #b42318; font-weight: bold; }
     .custom-capacity { margin-top: 6px; display: none; }
+    .warehouse-list { display: flex; flex-direction: column; gap: 10px; flex: 1; }
+    .warehouse-row { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; }
+    .warehouse-row .warehouse-box { flex: 1; }
+    .remove-warehouse-btn { background: #8f2d27; color: #fff; font-weight: bold; margin-top: 0; }
+    .add-warehouse-btn { background: #ffd84d; color: #07192b; font-weight: bold; }
     .summary { border: 2px solid #222; }
     .summary-person {
       margin-bottom: 26px;
@@ -653,10 +658,12 @@
       card.dataset.password = saved?.password ?? defaultPersons[personIndex - 1]?.password ?? "";
 
       const legacyWarehouseRow = saved?.rows?.find(r => r?.warehouse);
-      const savedWarehouse = saved?.warehouse || legacyWarehouseRow?.warehouse || "800";
-      const savedCustomCapacity = Number(
-        saved?.customCapacity ?? legacyWarehouseRow?.customCapacity ?? 0
-      ) || 0;
+      const savedWarehouses = Array.isArray(saved?.warehouses) && saved.warehouses.length
+        ? saved.warehouses
+        : [{
+            warehouse: saved?.warehouse || legacyWarehouseRow?.warehouse || "800",
+            customCapacity: Number(saved?.customCapacity ?? legacyWarehouseRow?.customCapacity ?? 0) || 0
+          }];
       const initialName = saved?.name || defaultPersons[personIndex - 1]?.name || `Person ${personIndex}`;
 
       card.innerHTML = `
@@ -672,12 +679,9 @@
         </div>
 
         <div class="person-warehouse protected-control">
-          <label>Lager:</label>
-          <div class="warehouse-box">
-            <div class="warehouse-list"></div>
-            <button type="button" class="add-btn add-warehouse-btn" style="margin-top:8px;">+ Weitere SpeicherstÃ¤tte</button>
-            <div class="storage-info"></div>
-          </div>
+          <label>LagergrÃ¶ÃŸe:</label>
+          <div class="warehouse-list"></div>
+          <button type="button" class="add-warehouse-btn">+ SpeicherstÃ¤tte hinzufÃ¼gen</button>
         </div>
 
         <div class="table-wrap">
@@ -708,37 +712,54 @@
       `;
 
       const warehouseList = card.querySelector(".warehouse-list");
-      function addWarehouseEntry(entry = {}) {
-        const wrap = document.createElement("div");
-        wrap.style.cssText = "display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;";
-        const value = String(entry.warehouse || "800");
-        const customValue = Number(entry.customCapacity) || 0;
-        wrap.innerHTML = `
-          <select class="warehouse" style="flex:1;min-width:190px;">
-            <option value="300">Borito 300 Platz</option>
-            <option value="500">Gardian 500 Platz</option>
-            <option value="800">Mule 800 Platz</option>
-            <option value="custom">Benutzerdefiniert</option>
-          </select>
-          <input type="number" class="custom-capacity" min="0" step="1" placeholder="Eigene LagergrÃ¶ÃŸe" value="${customValue || ""}" style="flex:1;min-width:170px;">
-          <button type="button" class="delete-btn remove-warehouse-btn">LÃ¶schen</button>`;
-        const select = wrap.querySelector(".warehouse");
-        const custom = wrap.querySelector(".custom-capacity");
-        select.value = ["300","500","800","custom"].includes(value) ? value : "custom";
-        if (!["300","500","800","custom"].includes(value) && !customValue) custom.value = Number(value) || "";
-        custom.style.display = select.value === "custom" ? "block" : "none";
-        select.addEventListener("change", () => { custom.style.display = select.value === "custom" ? "block" : "none"; calculateAll(); scheduleOnlineSave(); });
-        custom.addEventListener("input", () => { calculateAll(); scheduleOnlineSave(); });
-        wrap.querySelector(".remove-warehouse-btn").addEventListener("click", () => {
-          if (warehouseList.children.length > 1) { wrap.remove(); calculateAll(); scheduleOnlineSave(); }
+
+      function addWarehouseRow(data = {}) {
+        const row = document.createElement("div");
+        row.className = "warehouse-row";
+        const selected = String(data.warehouse || "800");
+        const customCapacity = Number(data.customCapacity) || 0;
+        row.innerHTML = `
+          <div class="warehouse-box">
+            <select class="warehouse">
+              <option value="300">Borito 300 Platz</option>
+              <option value="500">Gardian 500 Platz</option>
+              <option value="800">Mule 800 Platz</option>
+              <option value="custom">Benutzerdefiniert</option>
+            </select>
+            <input type="number" class="custom-capacity" min="0" step="1"
+                   placeholder="Eigene LagergrÃ¶ÃŸe" value="${customCapacity || ""}">
+            <div class="storage-info"></div>
+          </div>
+          <button type="button" class="remove-warehouse-btn">SpeicherstÃ¤tte entfernen</button>
+        `;
+        const warehouse = row.querySelector(".warehouse");
+        const customInput = row.querySelector(".custom-capacity");
+        warehouse.value = ["300", "500", "800", "custom"].includes(selected) ? selected : "custom";
+        if (warehouse.value === "custom" && !customCapacity && !["300", "500", "800"].includes(selected)) {
+          customInput.value = Number(selected) || "";
+        }
+        customInput.style.display = warehouse.value === "custom" ? "block" : "none";
+        warehouse.addEventListener("change", e => {
+          customInput.style.display = e.target.value === "custom" ? "block" : "none";
+          calculateAll();
+          scheduleOnlineSave();
         });
-        warehouseList.appendChild(wrap);
+        customInput.addEventListener("input", calculateAll);
+        row.querySelector(".remove-warehouse-btn").addEventListener("click", () => {
+          if (warehouseList.querySelectorAll(".warehouse-row").length <= 1) return;
+          row.remove();
+          calculateAll();
+          scheduleOnlineSave();
+        });
+        warehouseList.appendChild(row);
       }
-      const savedWarehouses = Array.isArray(saved?.warehouses) && saved.warehouses.length
-        ? saved.warehouses
-        : [{ warehouse: savedWarehouse, customCapacity: savedCustomCapacity }];
-      savedWarehouses.forEach(addWarehouseEntry);
-      card.querySelector(".add-warehouse-btn").addEventListener("click", () => { addWarehouseEntry({warehouse:"800"}); calculateAll(); scheduleOnlineSave(); });
+
+      savedWarehouses.forEach(addWarehouseRow);
+      card.querySelector(".add-warehouse-btn").addEventListener("click", () => {
+        addWarehouseRow({ warehouse: "800", customCapacity: 0 });
+        calculateAll();
+        scheduleOnlineSave();
+      });
 
       const tbody = card.querySelector("tbody");
       const rows = saved?.rows?.length ? saved.rows : Array.from({length: startRowsPerPerson}, () => ({}));
@@ -843,8 +864,7 @@
       createPerson(personsContainer.querySelectorAll(".person-card").length + 1, {
         name,
         password,
-        warehouse: "800",
-        customCapacity: 0,
+        warehouses: [{ warehouse: "800", customCapacity: 0 }],
         rows: Array.from({length: startRowsPerPerson}, () => ({}))
       });
       newPersonName.value = "";
@@ -965,28 +985,23 @@
         });
 
         // Mehrere SpeicherstÃ¤tten pro Person: KapazitÃ¤ten werden addiert.
-        const warehouseEntries = [...card.querySelectorAll(".warehouse-list > div")];
-        const capacity = warehouseEntries.reduce((sum, entry) => {
-          const warehouseSelect = entry.querySelector(".warehouse");
-          const customInput = entry.querySelector(".custom-capacity");
-          const customCapacity = Math.max(0, parseFloat(customInput?.value) || 0);
-          return sum + (warehouseSelect?.value === "custom" ? customCapacity : (parseInt(warehouseSelect?.value, 10) || 0));
-        }, 0);
-
-        const storageInfo = card.querySelector(".storage-info");
-        if (capacity > 0) {
-          const remaining = capacity - personStock;
-          if (personStock > capacity) {
-            storageInfo.textContent = `ÃœberfÃ¼llt um ${(personStock - capacity).toLocaleString("de-DE")} Stk.`;
-            storageInfo.className = "storage-info storage-warning";
-          } else {
-            storageInfo.textContent = `${personStock.toLocaleString("de-DE")} / ${capacity.toLocaleString("de-DE")} Stk. | frei: ${remaining.toLocaleString("de-DE")}`;
+        let capacity = 0;
+        card.querySelectorAll(".warehouse-row").forEach(warehouseRow => {
+          const warehouseSelect = warehouseRow.querySelector(".warehouse");
+          const customInput = warehouseRow.querySelector(".custom-capacity");
+          const rowCapacity = warehouseSelect.value === "custom"
+            ? Math.max(0, parseFloat(customInput.value) || 0)
+            : parseInt(warehouseSelect.value, 10) || 0;
+          capacity += rowCapacity;
+          const storageInfo = warehouseRow.querySelector(".storage-info");
+          if (rowCapacity > 0) {
+            storageInfo.textContent = `KapazitÃ¤t: ${rowCapacity.toLocaleString("de-DE")} Platz`;
             storageInfo.className = "storage-info storage-ok";
+          } else {
+            storageInfo.textContent = warehouseSelect.value === "custom" ? "Eigene LagergrÃ¶ÃŸe eintragen" : "";
+            storageInfo.className = "storage-info";
           }
-        } else {
-          storageInfo.textContent = "LagergrÃ¶ÃŸe eintragen";
-          storageInfo.className = "storage-info";
-        }
+        });
 
         grandGreen += personGreen;
         grandAlt += personAlt;
@@ -1127,19 +1142,8 @@
     }
 
 
-    function isPersonBeingEdited() {
-      // Solange jemand seinen Bereich entsperrt hat oder gerade ein Passwort
-      // eingibt, darf der Online-Abgleich die Personenbereiche nicht neu aufbauen.
-      // Dadurch bleibt z. B. Balu entsperrt, bis die Person selbst auf "Sperren" klickt.
-      const unlocked = [...personsContainer.querySelectorAll(".person-card")]
-        .some(card => card.dataset.unlocked === "1");
-      const passwordInProgress = [...personsContainer.querySelectorAll(".password-entry")]
-        .some(input => input === document.activeElement || input.value.length > 0);
-      return unlocked || passwordInProgress;
-    }
-
     async function checkForOnlineChanges() {
-      if (!onlineReady || applyingRemote || isPersonBeingEdited()) return;
+      if (!onlineReady || applyingRemote) return;
 
       try {
         const { data, error } = await supabaseClient
@@ -1181,10 +1185,6 @@
 
             try {
               if (payload?.new?.data) {
-                if (isPersonBeingEdited()) {
-                  setOnlineStatus("Online: Aktualisierung wartet bis zum Sperren", null);
-                  return;
-                }
                 lastRemoteUpdatedAt = updatedAt;
                 applyData(payload.new.data);
                 setOnlineStatus("Online: Aenderung empfangen", true);
@@ -1243,9 +1243,9 @@
       const persons = [...document.querySelectorAll(".person-card")].map(card => ({
         name: card.querySelector(".person-name").value,
         password: card.dataset.password || "",
-        warehouses: [...card.querySelectorAll(".warehouse-list > div")].map(entry => ({
-          warehouse: entry.querySelector(".warehouse").value,
-          customCapacity: Number(entry.querySelector(".custom-capacity").value) || 0
+        warehouses: [...card.querySelectorAll(".warehouse-row")].map(warehouseRow => ({
+          warehouse: warehouseRow.querySelector(".warehouse").value,
+          customCapacity: Number(warehouseRow.querySelector(".custom-capacity").value) || 0
         })),
         rows: [...card.querySelectorAll("tbody tr")].map(row => ({
           articleId: row.querySelector(".article-select").value,
@@ -1255,7 +1255,7 @@
       }));
 
       return {
-        version: 3,
+        version: 2,
         savedAt: new Date().toISOString(),
         priceItems,
         persons
