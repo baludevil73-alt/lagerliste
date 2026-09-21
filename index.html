@@ -1144,8 +1144,10 @@
         summaryPersons.appendChild(block);
       });
 
-      grandGreenEl.textContent = euro(grandGreen);
-      grandAltEl.textContent = euro(grandAlt);
+      const grandGreenTarget = document.getElementById("grandGreen");
+      const grandAltTarget = document.getElementById("grandAlt");
+      if (grandGreenTarget) grandGreenTarget.textContent = euro(grandGreen);
+      if (grandAltTarget) grandAltTarget.textContent = euro(grandAlt);
     }
 
     function setOnlineStatus(text, ok = null) {
@@ -1471,6 +1473,6 @@
 
 <div id="buildVersion" style="position:fixed;right:8px;bottom:8px;z-index:99999;
 background:#07192b;color:#ffd84d;border:1px solid #ffd84d;border-radius:5px;
-padding:4px 7px;font:11px Arial;">Version FIX-2026-09-21-02</div>
+padding:4px 7px;font:11px Arial;">Version FIX-2026-09-21-03</div>
 </body>
 </html>
