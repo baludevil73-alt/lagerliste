@@ -574,6 +574,8 @@
     let applyingRemote = false;
     let onlineSaveTimer = null;
     let lastRemoteUpdatedAt = null;
+    let localDirty = false;
+    let saveInProgress = false;
 
     let priceItems = [
       { id: crypto.randomUUID(), name: "Artikel 1", price: 0 },
@@ -1177,7 +1179,8 @@
     }
 
     async function saveToSupabase() {
-      if (!onlineReady || applyingRemote) return;
+      if (!onlineReady || applyingRemote || saveInProgress) return;
+      saveInProgress = true;
 
       const payload = collectData();
       setOnlineStatus("Online: speichert...", null);
@@ -1196,20 +1199,27 @@
       if (error) {
         setOnlineStatus("Online-Fehler beim Speichern", false);
         console.error("Supabase save error:", error);
+        saveInProgress = false;
         return;
       }
 
       if (!savedRow || savedRow.id !== 1) {
         setOnlineStatus("Online: Datensatz nicht aktualisiert", false);
+        saveInProgress = false;
         return;
       }
 
       lastRemoteUpdatedAt = savedRow.updated_at || now;
+      localDirty = false;
+      pendingRemoteData = null;
+      saveInProgress = false;
       setOnlineStatus("Online: gespeichert", true);
     }
 
     function scheduleOnlineSave() {
-      if (!onlineReady || applyingRemote) return;
+      if (applyingRemote) return;
+      localDirty = true;
+      if (!onlineReady) return;
 
       clearTimeout(onlineSaveTimer);
       onlineSaveTimer = setTimeout(() => {
@@ -1231,6 +1241,14 @@
 
     function applyRemoteDataSafely(remoteData) {
       if (!remoteData || !Array.isArray(remoteData.persons)) return;
+
+      // Lokale, noch nicht gespeicherte Aenderungen haben Vorrang. So kann
+      // ein alter Serverstand z.B. einen gerade hinzugefuegten 4. Artikel
+      // nicht wieder entfernen.
+      if (localDirty || saveInProgress || onlineSaveTimer) {
+        setOnlineStatus("Online: lokale Aenderung wird zuerst gespeichert", null);
+        return;
+      }
 
       // Nur waehrend wirklich in einem Feld geschrieben/gewaehlt wird, wird
       // die Remote-Aktualisierung kurz zwischengespeichert. Ein blosses
@@ -1273,8 +1291,10 @@
 
         const remoteStamp = data.updated_at || "";
         if (remoteStamp !== lastRemoteUpdatedAt) {
-          // Zeitstempel erst nach Empfang merken. Die Daten werden bei aktiver
-          // Eingabe gepuffert und direkt nach Verlassen des Feldes angewendet.
+          if (localDirty || saveInProgress || onlineSaveTimer) {
+            setOnlineStatus("Online: lokale Aenderung wird zuerst gespeichert", null);
+            return;
+          }
           lastRemoteUpdatedAt = remoteStamp;
           applyRemoteDataSafely(data.data);
           if (!pendingRemoteData) {
@@ -1312,6 +1332,10 @@
 
             try {
               if (payload?.new?.data) {
+                if (localDirty || saveInProgress || onlineSaveTimer) {
+                  setOnlineStatus("Online: lokale Aenderung wird zuerst gespeichert", null);
+                  return;
+                }
                 lastRemoteUpdatedAt = updatedAt;
                 applyRemoteDataSafely(payload.new.data);
                 if (!pendingRemoteData) {
