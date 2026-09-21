@@ -674,13 +674,8 @@
         <div class="person-warehouse protected-control">
           <label>Lager:</label>
           <div class="warehouse-box">
-            <select class="warehouse">
-              <option value="5000">Lager 5.000 Stk.</option>
-              <option value="8000">Lager 8.000 Stk.</option>
-              <option value="custom">Benutzerdefiniert</option>
-            </select>
-            <input type="number" class="custom-capacity" min="0" step="1"
-                   placeholder="Eigene Lagergr&ouml;&szlig;e" value="${savedCustomCapacity || ""}">
+            <div class="warehouse-list"></div>
+            <button type="button" class="add-btn add-warehouse-btn" style="margin-top:8px;">+ Weitere SpeicherstÃ¤tte</button>
             <div class="storage-info"></div>
           </div>
         </div>
