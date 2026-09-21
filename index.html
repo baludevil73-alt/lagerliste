@@ -620,6 +620,7 @@
 
     let onlineReady = false;
     let applyingRemote = false;
+    let localDirty = false;
     let onlineSaveTimer = null;
     let lastRemoteUpdatedAt = null;
 
@@ -1198,49 +1199,48 @@
     }
 
     async function saveToSupabase() {
-      if (!onlineReady || applyingRemote) return;
+      if (!onlineReady || applyingRemote) return false;
 
       const payload = collectData();
       setOnlineStatus("Online: speichert...", null);
 
-      const now = new Date().toISOString();
-      const { data: savedRow, error } = await supabaseClient
-        .from("shared_list")
-        .update({
-          data: payload,
-          updated_at: now
-        })
-        .eq("id", 1)
-        .select("id, updated_at")
-        .single();
+      try {
+        const now = new Date().toISOString();
+        const { error } = await supabaseClient
+          .from("shared_list")
+          .update({ data: payload, updated_at: now })
+          .eq("id", 1);
 
-      if (error) {
-        setOnlineStatus("Online-Fehler beim Speichern", false);
-        console.error("Supabase save error:", error);
-        return;
+        if (error) throw error;
+
+        lastRemoteUpdatedAt = now;
+        localDirty = false;
+        setOnlineStatus("Online: gespeichert", true);
+        return true;
+      } catch (err) {
+        localDirty = true;
+        const msg = err?.message || err?.details || err?.hint || String(err);
+        setOnlineStatus("Speicherfehler: " + msg, false);
+        console.error("Supabase save error:", err);
+        return false;
       }
-
-      if (!savedRow || savedRow.id !== 1) {
-        setOnlineStatus("Online: Datensatz nicht aktualisiert", false);
-        return;
-      }
-
-      lastRemoteUpdatedAt = savedRow.updated_at || now;
-      setOnlineStatus("Online: gespeichert", true);
     }
 
     function scheduleOnlineSave() {
-      if (!onlineReady || applyingRemote) return;
+      if (applyingRemote) return;
+      localDirty = true;
+      if (!onlineReady) return;
 
       clearTimeout(onlineSaveTimer);
-      onlineSaveTimer = setTimeout(() => {
-        saveToSupabase();
-      }, 700);
+      onlineSaveTimer = setTimeout(async () => {
+        onlineSaveTimer = null;
+        await saveToSupabase();
+      }, 500);
     }
 
 
     async function checkForOnlineChanges() {
-      if (!onlineReady || applyingRemote) return;
+      if (!onlineReady || applyingRemote || localDirty || onlineSaveTimer) return;
 
       try {
         const { data, error } = await supabaseClient
@@ -1277,6 +1277,7 @@
             filter: "id=eq.1"
           },
           payload => {
+            if (localDirty || onlineSaveTimer) return;
             const updatedAt = payload?.new?.updated_at || null;
             if (updatedAt && updatedAt === lastRemoteUpdatedAt) return;
 
@@ -1301,13 +1302,14 @@
 
     onlineSaveBtn.addEventListener("click", async () => {
       try {
-        if (!onlineReady) {
-          await loadFromSupabase();
-        }
+        clearTimeout(onlineSaveTimer);
+        onlineSaveTimer = null;
+        if (!onlineReady) await loadFromSupabase();
+        localDirty = true;
         await saveToSupabase();
-        setOnlineStatus("Online: manuell gespeichert", true);
       } catch (err) {
-        setOnlineStatus("Online-Speichern fehlgeschlagen", false);
+        const msg = err?.message || err?.details || err?.hint || String(err);
+        setOnlineStatus("Speicherfehler: " + msg, false);
         console.error(err);
       }
     });
@@ -1340,20 +1342,24 @@
 
     function collectData() {
       const persons = [...document.querySelectorAll(".person-card")].map(card => {
-        const warehouses = [...card.querySelectorAll(".warehouse-section")].map(section => ({
-          name: section.querySelector(".warehouse-name").value,
-          plate: section.querySelector(".warehouse-plate").value,
-          warehouse: section.querySelector(".warehouse").value,
-          customCapacity: Number(section.querySelector(".custom-capacity").value) || 0,
-          rows: [...section.querySelectorAll(".warehouse-rows tr")].map(row => ({
-            articleId: row.querySelector(".article-select").value,
-            stock: Number(row.querySelector(".stock-status-input").value) || 0,
-            altPrice: Number(row.querySelector(".alt-price-input").value) || 0
-          }))
-        }));
+        const warehouses = [...card.querySelectorAll(".warehouse-section")].map(section => {
+          const rows = [...section.querySelectorAll(".warehouse-rows tr")].map(row => ({
+            articleId: row.querySelector(".article-select")?.value || "",
+            stock: Number(row.querySelector(".stock-status-input")?.value) || 0,
+            altPrice: Number(row.querySelector(".alt-price-input")?.value) || 0
+          }));
+
+          return {
+            name: section.querySelector(".warehouse-name")?.value || "Lager",
+            plate: section.querySelector(".warehouse-plate")?.value || "",
+            warehouse: section.querySelector(".warehouse")?.value || "8000",
+            customCapacity: Number(section.querySelector(".custom-capacity")?.value) || 0,
+            rows
+          };
+        });
 
         return {
-          name: card.querySelector(".person-name").value,
+          name: card.querySelector(".person-name")?.value || "",
           password: card.dataset.password || "",
           mainWarehouse: warehouses[0] || null,
           extraWarehouses: warehouses.slice(1)
@@ -1361,7 +1367,7 @@
       });
 
       return {
-        version: 3,
+        version: 4,
         savedAt: new Date().toISOString(),
         priceItems,
         persons
@@ -1465,6 +1471,6 @@
 
 <div id="buildVersion" style="position:fixed;right:8px;bottom:8px;z-index:99999;
 background:#07192b;color:#ffd84d;border:1px solid #ffd84d;border-radius:5px;
-padding:4px 7px;font:11px Arial;">Version FIX-2026-09-21-01</div>
+padding:4px 7px;font:11px Arial;">Version FIX-2026-09-21-02</div>
 </body>
 </html>
