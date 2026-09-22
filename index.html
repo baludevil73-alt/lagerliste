@@ -1052,7 +1052,9 @@
 
         // Jede Extratabelle hat ein eigenes Lager. Nur die Artikel dieser
         // Extratabelle werden gegen ihre eigene Lagergroesse gerechnet.
-        card.querySelectorAll(".extra-table").forEach(extraTable => {
+        let extraSummaryHtml = "";
+        card.querySelectorAll(".extra-table").forEach((extraTable, extraIndex) => {
+          let extraSummaryRows = "";
           let extraStock = 0;
           extraTable.querySelectorAll(".extra-table-body tr").forEach(row => {
             const article = getPriceItemById(row.querySelector(".article-select").value);
@@ -1067,6 +1069,17 @@
             row.querySelector(".unit-price").textContent = euro(unitPrice);
             row.querySelector(".green-total").textContent = euro(greenTotal);
             row.querySelector(".alt-total").textContent = euro(altTotal);
+            if (article) {
+              extraSummaryRows += `
+                <tr>
+                  <td>${escapeHtml(article.name)}</td>
+                  <td>${stock.toLocaleString("de-DE")}</td>
+                  <td class="number">${euro(unitPrice)}</td>
+                  <td class="number">${euro(greenTotal)}</td>
+                  <td class="number">${euro(altPrice)}</td>
+                  <td class="number">${euro(altTotal)}</td>
+                </tr>`;
+            }
           });
 
           const extraWarehouseSelect = extraTable.querySelector(".extra-warehouse");
@@ -1088,6 +1101,23 @@
             extraStorageInfo.textContent = extraWarehouseSelect.value === "custom" ? "Eigene Lagergroesse eintragen" : "";
             extraStorageInfo.className = "extra-storage-info storage-info";
           }
+
+          if (!extraSummaryRows) extraSummaryRows = `<tr><td colspan="6">Noch keine Artikel ausgewaehlt.</td></tr>`;
+          const extraTitle = extraTable.querySelector(".extra-table-title")?.value.trim() || `Extratabelle ${extraIndex + 1}`;
+          const extraInfo = extraTable.querySelector(".extra-info-input")?.value || "-";
+          extraSummaryHtml += `
+            <div style="margin-top:18px;padding-top:14px;border-top:1px solid #34536f;">
+              <h3>${escapeHtml(extraTitle)}</h3>
+              <div class="storage-info" style="margin-bottom:8px;">Info: ${escapeHtml(extraInfo)}</div>
+              <div class="storage-info ${extraStock <= extraCapacity && extraCapacity > 0 ? "storage-ok" : (extraCapacity > 0 ? "storage-warning" : "")}" style="margin-bottom:10px;">
+                Lager: ${extraCapacity > 0
+                  ? `${extraStock.toLocaleString("de-DE")} / ${extraCapacity.toLocaleString("de-DE")} Stk. | frei: ${Math.max(0, extraCapacity - extraStock).toLocaleString("de-DE")}`
+                  : "keine Lagergroesse eingetragen"}
+              </div>
+              <div class="table-wrap"><table><thead><tr>
+                <th>Artikel</th><th>Lagerstatus</th><th>Einzelpreis</th><th>Gruengeld</th><th>Sonderpreis</th><th>Netto-Summe (-30 %)</th>
+              </tr></thead><tbody>${extraSummaryRows}</tbody></table></div>
+            </div>`;
         });
 
         grandGreen += personGreen;
@@ -1125,6 +1155,7 @@
               <tbody>${summaryRows}</tbody>
             </table>
           </div>
+          ${extraSummaryHtml}
           <div class="summary-person-total">
             Gr&uuml;ngeld: ${euro(personGreen)}
             &nbsp; | &nbsp;
