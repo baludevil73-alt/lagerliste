@@ -466,6 +466,13 @@
       color: #ffd84d !important;
     }
 
+
+    /* Infofelder Haupt- und Extratabellen */
+    .plate-info { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:0 0 14px; }
+    .plate-info label { font-weight:bold; }
+    .plate-info input { flex:1; min-width:260px; padding:8px 10px; border:1px solid #54718d; border-radius:6px; background:#0b243b; color:#fff; }
+    .plate-info input:focus { outline:3px solid rgba(255,216,77,.32); border-color:#ffd84d; }
+
 </style>
 </head>
 <body>
@@ -682,8 +689,8 @@
         </div>
 
         <div class="plate-info protected-control">
-          <label>Kennzeichen:</label>
-          <input type="text" class="plate-input" value="${escapeHtml(savedPlate)}" placeholder="Kennzeichen eintragen">
+          <label>Infobereich:</label>
+          <input type="text" class="plate-input" value="${escapeHtml(savedPlate)}" placeholder="Info eintragen">
         </div>
 
         <div class="person-warehouse protected-control">
@@ -691,7 +698,7 @@
           <div class="warehouse-box">
             <select class="warehouse">
               <option value="300">Borito 300 Platz</option>
-              <option value="500">Gardian 500 Platz</option>
+              <option value="500">Guardian 500 Platz</option>
               <option value="800">Mule 800 Platz</option>
               <option value="5000">Lager 5.000 Stk.</option>
               <option value="8000">Lager 8.000 Stk.</option>
@@ -758,12 +765,16 @@
             <input type="text" class="extra-table-title" value="${escapeHtml(data.title || "Extratabelle")}" placeholder="Titel der Extratabelle">
             <button type="button" class="delete-btn remove-extra-table-btn">Extratabelle entfernen</button>
           </div>
+          <div class="plate-info">
+            <label>Infobereich:</label>
+            <input type="text" class="extra-info-input" value="${escapeHtml(data.info || "")}" placeholder="Info eintragen">
+          </div>
           <div class="person-warehouse">
             <label>Lager:</label>
             <div class="warehouse-box">
               <select class="extra-warehouse">
                 <option value="300">Borito 300 Platz</option>
-                <option value="500">Gardian 500 Platz</option>
+                <option value="500">Guardian 500 Platz</option>
                 <option value="800">Mule 800 Platz</option>
                 <option value="5000">Lager 5.000 Stk.</option>
                 <option value="8000">Lager 8.000 Stk.</option>
@@ -1094,7 +1105,7 @@
         block.className = "summary-person";
         block.innerHTML = `
           <h3>${escapeHtml(name)}</h3>
-          <div class="storage-info" style="margin-bottom:8px;">Kennzeichen: ${escapeHtml(card.querySelector(".plate-input")?.value || "-")}</div>
+          <div class="storage-info" style="margin-bottom:8px;">Info: ${escapeHtml(card.querySelector(".plate-input")?.value || "-")}</div>
           <div class="storage-info ${personStock <= capacity && capacity > 0 ? "storage-ok" : (capacity > 0 ? "storage-warning" : "")}" style="margin-bottom:10px;">
             Lager: ${capacity > 0
               ? `${personStock.toLocaleString("de-DE")} / ${capacity.toLocaleString("de-DE")} Stk. | frei: ${Math.max(0, capacity - personStock).toLocaleString("de-DE")}`
@@ -1412,6 +1423,7 @@
           title: table.querySelector(".extra-table-title")?.value || "Extratabelle",
           warehouse: table.querySelector(".extra-warehouse")?.value || "8000",
           customCapacity: Number(table.querySelector(".extra-custom-capacity")?.value) || 0,
+          info: table.querySelector(".extra-info-input")?.value || "",
           rows: [...table.querySelectorAll(".extra-table-body tr")].map(row => ({
             articleId: row.querySelector(".article-select").value,
             stock: Number(row.querySelector(".stock-status-input").value) || 0,
@@ -1421,7 +1433,7 @@
       }));
 
       return {
-        version: 4,
+        version: 5,
         savedAt: new Date().toISOString(),
         priceItems,
         persons
