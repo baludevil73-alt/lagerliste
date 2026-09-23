@@ -508,6 +508,7 @@
 
     <div class="summary">
       <h2>Gesamt&uuml;bersicht</h2>
+      <div id="summaryArticleTotals"></div>
       <div id="summaryPersons"></div>
 
       <div class="grand-total">
@@ -564,6 +565,7 @@
 
     const personsContainer = document.getElementById("persons");
     const summaryPersons = document.getElementById("summaryPersons");
+    const summaryArticleTotals = document.getElementById("summaryArticleTotals");
     const priceListBody = document.getElementById("priceListBody");
     const addPriceItemBtn = document.getElementById("addPriceItemBtn");
     const saveBtn = document.getElementById("saveBtn");
@@ -1164,6 +1166,39 @@
         `;
         summaryPersons.appendChild(block);
       });
+
+      // Gesamtstueckzahlen gleicher Artikel aus allen Haupt- und Extratabellen zusammenfassen.
+      const articleTotals = new Map();
+      document.querySelectorAll(".person-card").forEach(card => {
+        card.querySelectorAll(".article-select").forEach(select => {
+          const articleId = select.value;
+          if (!articleId) return;
+          const row = select.closest("tr");
+          const stock = Math.max(0, parseFloat(row?.querySelector(".stock-status-input")?.value) || 0);
+          const article = getPriceItemById(articleId);
+          if (!article) return;
+          const current = articleTotals.get(articleId) || { name: article.name, stock: 0 };
+          current.name = article.name;
+          current.stock += stock;
+          articleTotals.set(articleId, current);
+        });
+      });
+
+      const totalRows = [...articleTotals.values()]
+        .sort((a, b) => a.name.localeCompare(b.name, "de"))
+        .map(item => `<tr><td>${escapeHtml(item.name)}</td><td class="number">${item.stock.toLocaleString("de-DE")}</td></tr>`)
+        .join("");
+
+      summaryArticleTotals.innerHTML = `
+        <div style="margin-bottom:24px;">
+          <h3>Gesamtstueckzahlen aller Lager</h3>
+          <div class="table-wrap">
+            <table style="min-width:520px;">
+              <thead><tr><th>Artikel</th><th>Gesamtstueckzahl</th></tr></thead>
+              <tbody>${totalRows || '<tr><td colspan="2">Noch keine Artikel ausgewaehlt.</td></tr>'}</tbody>
+            </table>
+          </div>
+        </div>`;
 
       document.getElementById("grandGreenTotal").textContent = euro(grandGreen);
       document.getElementById("grandAltTotal").textContent = euro(grandAlt);
