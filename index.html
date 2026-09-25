@@ -584,6 +584,8 @@
     let lastRemoteUpdatedAt = null;
     let localDirty = false;
     let saveInProgress = false;
+    let localChangeVersion = 0;
+    let saveQueued = false;
 
     let priceItems = [
       { id: crypto.randomUUID(), name: "Artikel 1", price: 0 },
@@ -1255,50 +1257,67 @@
     }
 
     async function saveToSupabase() {
-      if (!onlineReady || applyingRemote || saveInProgress) return;
-      saveInProgress = true;
+      if (!onlineReady || applyingRemote) return;
 
+      // Wenn waehrend eines laufenden Speichervorgangs erneut etwas geaendert
+      // wird, darf diese Aenderung nicht verloren gehen. Sie wird direkt danach
+      // in einem zweiten Durchlauf gespeichert.
+      if (saveInProgress) {
+        saveQueued = true;
+        return;
+      }
+
+      saveInProgress = true;
+      saveQueued = false;
+      const savingVersion = localChangeVersion;
       const payload = collectData();
       setOnlineStatus("Online: speichert...", null);
 
       const now = new Date().toISOString();
       const { data: savedRow, error } = await supabaseClient
         .from("shared_list")
-        .update({
-          data: payload,
-          updated_at: now
-        })
+        .update({ data: payload, updated_at: now })
         .eq("id", 1)
         .select("id, updated_at")
         .single();
 
-      if (error) {
+      if (error || !savedRow || savedRow.id !== 1) {
+        localDirty = true;
+        saveInProgress = false;
         setOnlineStatus("Online-Fehler beim Speichern", false);
-        console.error("Supabase save error:", error);
-        saveInProgress = false;
-        return;
-      }
-
-      if (!savedRow || savedRow.id !== 1) {
-        setOnlineStatus("Online: Datensatz nicht aktualisiert", false);
-        saveInProgress = false;
+        if (error) console.error("Supabase save error:", error);
+        // Nicht verwerfen: spaeter erneut versuchen.
+        clearTimeout(onlineSaveTimer);
+        onlineSaveTimer = setTimeout(() => saveToSupabase(), 1500);
         return;
       }
 
       lastRemoteUpdatedAt = savedRow.updated_at || now;
-      localDirty = false;
-      pendingRemoteData = null;
       saveInProgress = false;
-      setOnlineStatus("Online: gespeichert", true);
+
+      // Nur dann als vollstaendig gespeichert markieren, wenn seit Beginn
+      // dieses Speichervorgangs wirklich nichts Neues geaendert wurde.
+      if (savingVersion === localChangeVersion && !saveQueued) {
+        localDirty = false;
+        pendingRemoteData = null;
+        setOnlineStatus("Online: gespeichert", true);
+      } else {
+        localDirty = true;
+        setOnlineStatus("Online: weitere Aenderungen werden gespeichert...", null);
+        clearTimeout(onlineSaveTimer);
+        onlineSaveTimer = setTimeout(() => saveToSupabase(), 50);
+      }
     }
 
     function scheduleOnlineSave() {
       if (applyingRemote) return;
       localDirty = true;
+      localChangeVersion += 1;
       if (!onlineReady) return;
 
       clearTimeout(onlineSaveTimer);
       onlineSaveTimer = setTimeout(() => {
+        onlineSaveTimer = null;
         saveToSupabase();
       }, 700);
     }
