@@ -522,6 +522,25 @@
 
     <div class="panel">
       <h2>Artikelliste & Festpreise</h2>
+      <div class="person-lock" style="margin-bottom:14px;">
+        <input type="password" id="pricePassword" placeholder="Passwort eingeben" aria-label="Passwort fÃ¼r Artikelliste" autocomplete="current-password">
+        <button type="button" class="unlock-btn" id="priceUnlock">Entsperren</button>
+        <button type="button" class="lock-btn" id="priceLock">Sperren</button>
+        <span id="priceLockState" class="lock-state" role="status">Gesperrt</span>
+      </div>
+      <details id="pricePasswordAdmin" hidden style="margin-bottom:18px;">
+        <summary>PasswÃ¶rter verwalten</summary>
+        <div class="person-admin">
+          <label>Neues Hauptpasswort<input type="password" id="priceNewMaster" autocomplete="new-password"></label>
+          <button type="button" class="save-btn" id="priceChangeMaster">Hauptpasswort Ã¤ndern</button>
+        </div>
+        <div class="person-admin">
+          <label>Bezeichnung<input type="text" id="pricePasswordLabel" placeholder="z. B. Mitarbeiter"></label>
+          <label>ZusÃ¤tzliches Passwort<input type="password" id="priceNewPassword" autocomplete="new-password"></label>
+          <button type="button" class="add-btn" id="priceAddPassword">Passwort anlegen</button>
+        </div>
+        <div id="pricePasswordList" style="margin-top:12px;"></div>
+      </details>
       <div class="price-list-note">
         Hier legst du Artikel und Festpreise an.
       </div>
@@ -921,6 +940,103 @@
       scheduleOnlineSave();
     });
 
+    // Passwortschutz ausschlieÃŸlich fÃ¼r Artikelliste und Festpreise.
+    let priceAccess = { master: "1702", passwords: [] };
+    let priceCredential = null;
+    const pricePanel = priceListBody.closest(".panel");
+    const pricePassword = document.getElementById("pricePassword");
+    const priceAdmin = document.getElementById("pricePasswordAdmin");
+    function priceCanEdit() {
+      return priceCredential !== null && (priceCredential === priceAccess.master || priceAccess.passwords.some(p => p.password === priceCredential));
+    }
+    function priceIsAdmin() { return priceCredential !== null && priceCredential === priceAccess.master; }
+    function updatePriceLock() {
+      const unlocked = priceCanEdit();
+      priceListBody.querySelectorAll("input, button").forEach(el => el.disabled = !unlocked);
+      addPriceItemBtn.disabled = !unlocked;
+      priceAdmin.hidden = !priceIsAdmin();
+      if (priceAdmin.hidden) priceAdmin.open = false;
+      document.getElementById("priceLockState").textContent = unlocked ? "Entsperrt" : "Gesperrt";
+      document.getElementById("priceLockState").style.color = unlocked ? "#067647" : "#b42318";
+    }
+    function renderPricePasswords() {
+      const list = document.getElementById("pricePasswordList");
+      list.replaceChildren();
+      priceAccess.passwords.forEach((entry, index) => {
+        const row = document.createElement("div");
+        row.style.marginBottom = "8px";
+        const label = document.createElement("span");
+        label.textContent = entry.label + " ";
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "delete-btn";
+        remove.textContent = "Entfernen";
+        remove.addEventListener("click", () => {
+          if (!priceIsAdmin()) return;
+          priceAccess.passwords.splice(index, 1);
+          renderPricePasswords();
+          scheduleOnlineSave();
+        });
+        row.append(label, remove);
+        list.append(row);
+      });
+    }
+    function applyPriceAccess(value) {
+      // Ã„ltere Dateien ohne Passworteinstellungen behalten die aktuelle Sperre.
+      if (!value || typeof value.master !== "string" || !value.master.trim() || !Array.isArray(value.passwords)) return;
+      const changed = JSON.stringify(value) !== JSON.stringify(priceAccess);
+      priceAccess = { master: value.master, passwords: value.passwords.filter(p => p && typeof p.label === "string" && typeof p.password === "string" && p.password.trim()).map(p => ({ label: p.label, password: p.password })) };
+      if (changed) {
+        priceCredential = null;
+        pricePassword.value = "";
+        renderPricePasswords();
+      }
+      updatePriceLock();
+    }
+    document.getElementById("priceUnlock").addEventListener("click", () => {
+      priceCredential = pricePassword.value;
+      pricePassword.value = "";
+      if (!priceCanEdit()) { priceCredential = null; alert("Falsches Passwort."); }
+      updatePriceLock();
+    });
+    pricePassword.addEventListener("keydown", e => {
+      if (e.key === "Enter") { e.preventDefault(); document.getElementById("priceUnlock").click(); }
+    });
+    document.getElementById("priceLock").addEventListener("click", () => {
+      priceCredential = null;
+      pricePassword.value = "";
+      priceAdmin.querySelectorAll("input").forEach(input => input.value = "");
+      updatePriceLock();
+    });
+    document.getElementById("priceChangeMaster").addEventListener("click", () => {
+      if (!priceIsAdmin()) return;
+      const input = document.getElementById("priceNewMaster");
+      if (!input.value.trim()) return alert("Bitte ein neues Hauptpasswort eingeben.");
+      if (priceAccess.passwords.some(p => p.password === input.value)) return alert("Dieses Passwort ist bereits als zusÃ¤tzliches Passwort vergeben.");
+      priceAccess.master = input.value;
+      priceCredential = input.value;
+      input.value = "";
+      scheduleOnlineSave();
+      alert("Hauptpasswort geÃ¤ndert. Bitte die Tabelle speichern, falls keine Online-Verbindung besteht.");
+    });
+    document.getElementById("priceAddPassword").addEventListener("click", () => {
+      if (!priceIsAdmin()) return;
+      const label = document.getElementById("pricePasswordLabel");
+      const input = document.getElementById("priceNewPassword");
+      if (!label.value.trim() || !input.value.trim()) return alert("Bitte Bezeichnung und Passwort eingeben.");
+      if (input.value === priceAccess.master || priceAccess.passwords.some(p => p.password === input.value)) return alert("Dieses Passwort ist bereits vergeben.");
+      priceAccess.passwords.push({ label: label.value.trim(), password: input.value });
+      label.value = "";
+      input.value = "";
+      renderPricePasswords();
+      scheduleOnlineSave();
+    });
+    // Passworteingaben allein lÃ¶sen keine Speicherung der Tabelle aus.
+    [pricePassword, ...priceAdmin.querySelectorAll("input")].forEach(input => {
+      input.addEventListener("input", e => e.stopPropagation());
+      input.addEventListener("change", e => e.stopPropagation());
+    });
+
     function renderPriceList() {
       priceListBody.innerHTML = "";
 
@@ -933,17 +1049,20 @@
         `;
 
         row.querySelector(".price-item-name").addEventListener("input", e => {
+          if (!priceCanEdit()) return;
           item.name = e.target.value;
           refreshAllArticleSelects();
           calculateAll();
         });
 
         row.querySelector(".price-item-price").addEventListener("input", e => {
+          if (!priceCanEdit()) return;
           item.price = Math.max(0, parseFloat(e.target.value) || 0);
           calculateAll();
         });
 
         row.querySelector(".delete-btn").addEventListener("click", () => {
+          if (!priceCanEdit()) return;
           priceItems = priceItems.filter(x => x.id !== item.id);
       
     document.addEventListener("input", event => {
@@ -967,6 +1086,7 @@
       });
 
       document.getElementById("priceItemCount").textContent = priceItems.length;
+      updatePriceLock();
     }
 
     function refreshAllArticleSelects() {
@@ -978,6 +1098,7 @@
     }
 
     addPriceItemBtn.addEventListener("click", () => {
+      if (!priceCanEdit()) return;
       priceItems.push({
         id: crypto.randomUUID(),
         name: `Artikel ${priceItems.length + 1}`,
@@ -1216,6 +1337,7 @@
         throw new Error("Ungueltige Daten");
       }
 
+      applyPriceAccess(data.priceAccess);
       applyingRemote = true;
       if (onlineSaveTimer) {
         clearTimeout(onlineSaveTimer);
@@ -1518,6 +1640,7 @@
 
       return {
         version: 4,
+        priceAccess: JSON.parse(JSON.stringify(priceAccess)),
         savedAt: new Date().toISOString(),
         priceItems,
         persons
@@ -1551,6 +1674,7 @@
           throw new Error("Ung&uuml;ltiges Dateiformat");
         }
 
+        applyPriceAccess(data.priceAccess);
         priceItems = data.priceItems.map(item => ({
           id: item.id || crypto.randomUUID(),
           name: item.name || "Artikel",
