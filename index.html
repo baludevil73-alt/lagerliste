@@ -488,6 +488,7 @@
       <button type="button" class="save-btn" id="onlineSaveBtn">Jetzt online speichern</button>
       <input type="file" id="fileInput" accept=".json,application/json" hidden>
       <span id="onlineStatus" style="align-self:center;font-weight:bold;color:#667085;">Online: verbindet...</span><span style="align-self:center;color:#667085;font-size:13px;">Automatischer Abgleich jede Sekunde</span>
+      <span id="syncDetails" style="align-self:center;font-size:13px;">Version: Sync-4 | Noch keine Serverbestaetigung</span>
     </div>
 
     <div class="panel">
@@ -593,6 +594,7 @@
     const syncBtn = document.getElementById("syncBtn");
     const onlineSaveBtn = document.getElementById("onlineSaveBtn");
     const onlineStatus = document.getElementById("onlineStatus");
+    const syncDetails = document.getElementById("syncDetails");
     const addPersonBtn = document.getElementById("addPersonBtn");
     const newPersonName = document.getElementById("newPersonName");
     const newPersonPassword = document.getElementById("newPersonPassword");
@@ -1128,37 +1130,33 @@
           <td class="actions"><button type="button" class="delete-btn">L&ouml;schen</button></td>
         `;
 
-        row.querySelector(".price-item-name").addEventListener("input", e => {
+        row.dataset.priceItemId = item.id;
+        const nameInput = row.querySelector(".price-item-name");
+        const priceInput = row.querySelector(".price-item-price");
+        nameInput.dataset.renderedValue = nameInput.value;
+        priceInput.dataset.renderedValue = priceInput.value;
+        const commitPriceInput = (input, key) => {
           if (!priceCanEdit()) return;
-          item.name = e.target.value;
-          refreshAllArticleSelects();
+          const current = getPriceItemById(row.dataset.priceItemId);
+          if (!current) return;
+          const value = key === "price" ? Math.max(0, parseFloat(input.value) || 0) : input.value;
+          input.dataset.renderedValue = input.value;
+          if (current[key] === value) return;
+          current[key] = value;
+          if (key === "name") refreshAllArticleSelects();
           calculateAll();
-        });
-
-        row.querySelector(".price-item-price").addEventListener("input", e => {
-          if (!priceCanEdit()) return;
-          item.price = Math.max(0, parseFloat(e.target.value) || 0);
-          calculateAll();
-        });
+          scheduleOnlineSave();
+        };
+        for (const event of ["input", "change"]) {
+          nameInput.addEventListener(event, () => commitPriceInput(nameInput, "name"));
+          priceInput.addEventListener(event, () => commitPriceInput(priceInput, "price"));
+        }
 
         row.querySelector(".delete-btn").addEventListener("click", () => {
           if (!priceCanEdit()) return;
           priceItems = priceItems.filter(x => x.id !== item.id);
           scheduleOnlineSave();
-      
-    document.addEventListener("input", event => {
-      if (event.target.matches("input, select")) {
-        scheduleOnlineSave();
-      }
-    });
-
-    document.addEventListener("change", event => {
-      if (event.target.matches("input, select")) {
-        scheduleOnlineSave();
-      }
-    });
-
-    renderPriceList();
+          renderPriceList();
           refreshAllArticleSelects();
           calculateAll();
         });
@@ -1409,6 +1407,11 @@
       document.getElementById("grandAltTotal").textContent = euro(grandAlt);
     }
 
+    function showServerConfirmation(stamp, count, action) {
+      const time = new Date(stamp).toLocaleTimeString("de-DE");
+      syncDetails.textContent = "Version: Sync-4 | " + action + ": " + time + " | " + count + " Artikel";
+    }
+
     function setOnlineStatus(text, ok = null) {
       onlineStatus.textContent = text;
       onlineStatus.style.color = ok === true ? "#067647" : ok === false ? "#b42318" : "#667085";
@@ -1487,6 +1490,8 @@
         }
       }
 
+      if (!data?.data || !Array.isArray(data.data.priceItems) || !Array.isArray(data.data.persons)) throw new Error("Keine gueltige gemeinsame Liste empfangen.");
+      showServerConfirmation(data.updated_at, data.data.priceItems.length, "Serverstand gelesen");
       lastRemoteUpdatedAt = data?.updated_at || null;
       onlineReady = true;
       if (localDirty || JSON.stringify(priceAccess) !== JSON.stringify(priceAccessBase)) scheduleOnlineSave();
@@ -1508,8 +1513,8 @@
       onlineSaveTimer = null;
       saveInProgress = true;
       saveQueued = false;
+      const payload = JSON.parse(JSON.stringify(collectData()));
       const savingVersion = localChangeVersion;
-      const payload = collectData();
       const accessSnapshot = JSON.parse(JSON.stringify(priceAccess));
       setOnlineStatus("Online: speichert...", null);
 
@@ -1529,10 +1534,16 @@
         const now = new Date(Math.max(Date.now(), Date.parse(current.updated_at) + 1)).toISOString();
         const result = await supabaseClient.from("shared_list")
           .update({ data: payload, updated_at: now }).eq("id", 1)
-          .eq("updated_at", current.updated_at).select("id, updated_at").maybeSingle();
+          .eq("updated_at", current.updated_at).select("id, data, updated_at").maybeSingle();
         if (result.error) throw result.error;
         if (!result.data) throw new Error("Gleichzeitige Aenderung; Speichern wird wiederholt.");
         savedRow = result.data;
+        const articleSignature = items => Array.isArray(items)
+          ? JSON.stringify(items.map(item => [item.id, item.name, Number(item.price) || 0])) : null;
+        if (articleSignature(savedRow.data?.priceItems) !== articleSignature(payload.priceItems)) {
+          throw new Error("Der Server hat andere Artikeldaten zurueckgegeben. Bitte Tabelle als Datei sichern und den Fehler melden.");
+        }
+        showServerConfirmation(savedRow.updated_at, savedRow.data.priceItems.length, "Speichern vom Server bestaetigt");
         priceAccess = mergePriceAccess(accessSnapshot, priceAccess, payload.priceAccess);
         priceAccessBase = JSON.parse(JSON.stringify(payload.priceAccess));
         priceItems = mergePriceItems(itemsSnapshot, priceItems, payload.priceItems).map(item => {
@@ -1564,7 +1575,8 @@
       } catch (err) {
         localDirty = true;
         saveInProgress = false;
-        setOnlineStatus("Online: nicht gespeichert; erneuter Versuch folgt", false);
+        setOnlineStatus("Online: Speichern nicht bestaetigt; erneuter Versuch folgt", false);
+        syncDetails.textContent = "Version: Sync-4 | Speicherfehler: " + (err.message || "Unbekannter Fehler");
         console.error("Speichern fehlgeschlagen:", err);
         clearTimeout(onlineSaveTimer);
         onlineSaveTimer = setTimeout(() => { onlineSaveTimer = null; saveToSupabase(); }, 1500);
@@ -1801,6 +1813,17 @@
     });
 
     function collectData() {
+      if (priceCanEdit()) priceListBody.querySelectorAll("tr[data-price-item-id]").forEach(row => {
+        const current = getPriceItemById(row.dataset.priceItemId);
+        if (!current) return;
+        for (const [selector, key] of [[".price-item-name", "name"], [".price-item-price", "price"]]) {
+          const input = row.querySelector(selector);
+          if (input.value !== input.dataset.renderedValue) {
+            current[key] = key === "price" ? Math.max(0, parseFloat(input.value) || 0) : input.value;
+            input.dataset.renderedValue = input.value;
+          }
+        }
+      });
       const persons = [...document.querySelectorAll(".person-card")].map(card => ({
         name: card.querySelector(".person-name").value,
         password: card.dataset.password || "",
