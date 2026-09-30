@@ -943,6 +943,51 @@
     // Passwortschutz ausschlie\u00dflich f\u00fcr Artikelliste und Festpreise.
     let priceAccess = { master: "1702", passwords: [] };
     let priceCredential = null;
+    let priceAccessBase = JSON.parse(JSON.stringify(priceAccess));
+    let priceItemsBase = null;
+    const priceAccessCacheKey = "lagerliste-price-access-v2-" + SUPABASE_URL;
+    try {
+      const cached = JSON.parse(localStorage.getItem(priceAccessCacheKey) || "null");
+      if (cached && normalizePriceAccess(cached.current) && normalizePriceAccess(cached.base)) {
+        priceAccess = normalizePriceAccess(cached.current);
+        priceAccessBase = normalizePriceAccess(cached.base);
+      }
+    } catch (_) {}
+    function normalizePriceAccess(value) {
+      if (!value || typeof value.master !== "string" || !value.master.trim() || !Array.isArray(value.passwords)) return null;
+      return { master: value.master, passwords: value.passwords.filter(p => p && typeof p.label === "string" && typeof p.password === "string" && p.password.trim()).map(p => ({ label: p.label, password: p.password })) };
+    }
+    function cachePriceAccess() {
+      try { localStorage.setItem(priceAccessCacheKey, JSON.stringify({ current: priceAccess, base: priceAccessBase })); }
+      catch (_) { setOnlineStatus("Lokale Sicherung nicht verfuegbar; bitte online oder als Datei speichern", false); }
+    }
+    function mergePriceAccess(base, local, remote) {
+      const result = normalizePriceAccess(remote) || normalizePriceAccess(base);
+      if (local.master !== base.master) {
+        if (result.master !== base.master && result.master !== local.master) throw new Error("Das Hauptpasswort wurde gleichzeitig geaendert. Bitte die Passworteinstellungen pruefen.");
+        result.master = local.master;
+      }
+      const removed = new Set(base.passwords.filter(p => !local.passwords.some(q => q.password === p.password)).map(p => p.password));
+      result.passwords = result.passwords.filter(p => !removed.has(p.password));
+      local.passwords.filter(p => !base.passwords.some(q => q.password === p.password)).forEach(p => {
+        if (!result.passwords.some(q => q.password === p.password) && p.password !== result.master) result.passwords.push({ ...p });
+      });
+      return result;
+    }
+    function mergePriceItems(base, local, remote) {
+      if (!Array.isArray(base) || !Array.isArray(remote)) return local;
+      const result = JSON.parse(JSON.stringify(remote));
+      base.filter(p => !local.some(q => q.id === p.id)).forEach(p => {
+        const i = result.findIndex(q => q.id === p.id); if (i !== -1) result.splice(i, 1);
+      });
+      local.forEach(p => {
+        const previous = base.find(q => q.id === p.id);
+        const target = result.find(q => q.id === p.id);
+        if (!previous) { if (!target) result.push({ ...p }); }
+        else if (target) { for (const key of ["name", "price"]) if (p[key] !== previous[key]) target[key] = p[key]; }
+      });
+      return result;
+    }
     const pricePanel = priceListBody.closest(".panel");
     const pricePassword = document.getElementById("pricePassword");
     const priceAdmin = document.getElementById("pricePasswordAdmin");
@@ -974,6 +1019,7 @@
         remove.addEventListener("click", () => {
           if (!priceIsAdmin()) return;
           priceAccess.passwords.splice(index, 1);
+          cachePriceAccess();
           renderPricePasswords();
           scheduleOnlineSave();
         });
@@ -982,18 +1028,23 @@
       });
     }
     function applyPriceAccess(value) {
-      // \u00c4ltere Dateien ohne Passworteinstellungen behalten die aktuelle Sperre.
-      if (!value || typeof value.master !== "string" || !value.master.trim() || !Array.isArray(value.passwords)) return;
-      const changed = JSON.stringify(value) !== JSON.stringify(priceAccess);
-      priceAccess = { master: value.master, passwords: value.passwords.filter(p => p && typeof p.label === "string" && typeof p.password === "string" && p.password.trim()).map(p => ({ label: p.label, password: p.password })) };
-      if (changed) {
-        priceCredential = null;
-        pricePassword.value = "";
-        renderPricePasswords();
-      }
+      const remote = normalizePriceAccess(value);
+      if (!remote) return;
+      const merged = mergePriceAccess(priceAccessBase, priceAccess, remote);
+      const changed = JSON.stringify(merged) !== JSON.stringify(priceAccess);
+      priceAccess = merged;
+      priceAccessBase = remote;
+      // Keep an unlocked session while its actual password remains valid.
+      if (!priceCanEdit()) priceCredential = null;
+      if (changed) renderPricePasswords();
+      cachePriceAccess();
       updatePriceLock();
     }
-    document.getElementById("priceUnlock").addEventListener("click", () => {
+    document.getElementById("priceUnlock").addEventListener("click", async () => {
+      if (!onlineReady) {
+        try { await loadFromSupabase(); }
+        catch (_) { setOnlineStatus("Offline: zuletzt bekannte Passwoerter werden verwendet", false); }
+      }
       priceCredential = pricePassword.value;
       pricePassword.value = "";
       if (!priceCanEdit()) { priceCredential = null; alert("Falsches Passwort."); }
@@ -1015,6 +1066,7 @@
       if (priceAccess.passwords.some(p => p.password === input.value)) return alert("Dieses Passwort ist bereits als zus\u00e4tzliches Passwort vergeben.");
       priceAccess.master = input.value;
       priceCredential = input.value;
+      cachePriceAccess();
       input.value = "";
       scheduleOnlineSave();
       alert("Hauptpasswort ge\u00e4ndert. Bitte die Tabelle speichern, falls keine Online-Verbindung besteht.");
@@ -1026,6 +1078,7 @@
       if (!label.value.trim() || !input.value.trim()) return alert("Bitte Bezeichnung und Passwort eingeben.");
       if (input.value === priceAccess.master || priceAccess.passwords.some(p => p.password === input.value)) return alert("Dieses Passwort ist bereits vergeben.");
       priceAccess.passwords.push({ label: label.value.trim(), password: input.value });
+      cachePriceAccess();
       label.value = "";
       input.value = "";
       renderPricePasswords();
@@ -1064,6 +1117,7 @@
         row.querySelector(".delete-btn").addEventListener("click", () => {
           if (!priceCanEdit()) return;
           priceItems = priceItems.filter(x => x.id !== item.id);
+          scheduleOnlineSave();
       
     document.addEventListener("input", event => {
       if (event.target.matches("input, select")) {
@@ -1099,6 +1153,7 @@
 
     addPriceItemBtn.addEventListener("click", () => {
       if (!priceCanEdit()) return;
+      scheduleOnlineSave();
       priceItems.push({
         id: crypto.randomUUID(),
         name: `Artikel ${priceItems.length + 1}`,
@@ -1338,6 +1393,7 @@
       }
 
       applyPriceAccess(data.priceAccess);
+      priceItemsBase = JSON.parse(JSON.stringify(data.priceItems));
       applyingRemote = true;
       if (onlineSaveTimer) {
         clearTimeout(onlineSaveTimer);
@@ -1370,51 +1426,86 @@
       if (error) throw error;
 
       if (data && data.data && Array.isArray(data.data.priceItems) && Array.isArray(data.data.persons)) {
-        applyData(data.data);
+        if (localDirty || isUserActivelyEditing()) {
+          applyPriceAccess(data.data.priceAccess);
+          if (!priceItemsBase) priceItemsBase = JSON.parse(JSON.stringify(data.data.priceItems));
+          if (!localDirty) pendingRemoteData = data.data;
+        } else {
+          applyData(data.data);
+        }
       }
 
       lastRemoteUpdatedAt = data?.updated_at || null;
       onlineReady = true;
+      if (localDirty || JSON.stringify(priceAccess) !== JSON.stringify(priceAccessBase)) scheduleOnlineSave();
       setOnlineStatus("Online: synchronisiert", true);
     }
 
     async function saveToSupabase() {
-      if (!onlineReady || applyingRemote) return;
+      if (!onlineReady || applyingRemote) return false;
 
       // Wenn waehrend eines laufenden Speichervorgangs erneut etwas geaendert
       // wird, darf diese Aenderung nicht verloren gehen. Sie wird direkt danach
       // in einem zweiten Durchlauf gespeichert.
       if (saveInProgress) {
         saveQueued = true;
-        return;
+        return false;
       }
 
       saveInProgress = true;
       saveQueued = false;
       const savingVersion = localChangeVersion;
       const payload = collectData();
+      const accessSnapshot = JSON.parse(JSON.stringify(priceAccess));
       setOnlineStatus("Online: speichert...", null);
 
-      const now = new Date().toISOString();
-      const { data: savedRow, error } = await supabaseClient
-        .from("shared_list")
-        .update({ data: payload, updated_at: now })
-        .eq("id", 1)
-        .select("id, updated_at")
-        .single();
-
-      if (error || !savedRow || savedRow.id !== 1) {
+      let savedRow;
+      try {
+        // Read the current password list before every write. A timestamp filter
+        // prevents another tab from writing between this read and the update.
+        const { data: current, error: readError } = await supabaseClient
+          .from("shared_list").select("data, updated_at").eq("id", 1).single();
+        if (readError) throw readError;
+        if (!current || !current.data || !current.updated_at) throw new Error("Gemeinsame Liste konnte nicht sicher gelesen werden.");
+        const itemsSnapshot = JSON.parse(JSON.stringify(payload.priceItems));
+        payload.priceAccess = mergePriceAccess(priceAccessBase, accessSnapshot, current.data.priceAccess);
+        payload.priceItems = mergePriceItems(priceItemsBase, itemsSnapshot, current.data.priceItems);
+        const now = new Date(Math.max(Date.now(), Date.parse(current.updated_at) + 1)).toISOString();
+        const result = await supabaseClient.from("shared_list")
+          .update({ data: payload, updated_at: now }).eq("id", 1)
+          .eq("updated_at", current.updated_at).select("id, updated_at").maybeSingle();
+        if (result.error) throw result.error;
+        if (!result.data) throw new Error("Gleichzeitige Aenderung; Speichern wird wiederholt.");
+        savedRow = result.data;
+        priceAccess = mergePriceAccess(accessSnapshot, priceAccess, payload.priceAccess);
+        priceAccessBase = JSON.parse(JSON.stringify(payload.priceAccess));
+        priceItems = mergePriceItems(itemsSnapshot, priceItems, payload.priceItems).map(item => {
+          const existing = priceItems.find(p => p.id === item.id);
+          return existing ? Object.assign(existing, item) : item;
+        });
+        priceItemsBase = JSON.parse(JSON.stringify(payload.priceItems));
+        cachePriceAccess();
+        renderPricePasswords();
+        if (!priceCanEdit()) priceCredential = null;
+        updatePriceLock();
+        // Do not rebuild focused controls. The next safe sync refreshes them.
+        if (!isUserActivelyEditing()) {
+          renderPriceList();
+          refreshAllArticleSelects();
+          calculateAll();
+        } else {
+          priceRefreshPending = true;
+        }
+      } catch (err) {
         localDirty = true;
         saveInProgress = false;
-        setOnlineStatus("Online-Fehler beim Speichern", false);
-        if (error) console.error("Supabase save error:", error);
-        // Nicht verwerfen: spaeter erneut versuchen.
+        setOnlineStatus("Online: nicht gespeichert; erneuter Versuch folgt", false);
+        console.error("Speichern fehlgeschlagen:", err);
         clearTimeout(onlineSaveTimer);
-        onlineSaveTimer = setTimeout(() => saveToSupabase(), 1500);
-        return;
+        onlineSaveTimer = setTimeout(() => { onlineSaveTimer = null; saveToSupabase(); }, 1500);
+        return false;
       }
-
-      lastRemoteUpdatedAt = savedRow.updated_at || now;
+      lastRemoteUpdatedAt = savedRow.updated_at;
       saveInProgress = false;
 
       // Nur dann als vollstaendig gespeichert markieren, wenn seit Beginn
@@ -1429,6 +1520,7 @@
         clearTimeout(onlineSaveTimer);
         onlineSaveTimer = setTimeout(() => saveToSupabase(), 50);
       }
+      return !localDirty;
     }
 
     function scheduleOnlineSave() {
@@ -1446,6 +1538,7 @@
 
 
     let pendingRemoteData = null;
+    let priceRefreshPending = false;
     let syncCheckRunning = false;
     let realtimeChannel = null;
 
@@ -1453,7 +1546,7 @@
       const active = document.activeElement;
       if (!active) return false;
       if (!active.matches("input, select, textarea")) return false;
-      return !!active.closest(".person-card.unlocked");
+      return !!active.closest(".person-card.unlocked") || pricePanel.contains(active);
     }
 
     function applyRemoteDataSafely(remoteData) {
@@ -1481,7 +1574,13 @@
     }
 
     function flushPendingRemoteData() {
-      if (!pendingRemoteData || isUserActivelyEditing()) return;
+      if (priceRefreshPending && !isUserActivelyEditing() && !localDirty && !saveInProgress && !onlineSaveTimer) {
+        priceRefreshPending = false;
+        renderPriceList();
+        refreshAllArticleSelects();
+        calculateAll();
+      }
+      if (!pendingRemoteData || isUserActivelyEditing() || localDirty || saveInProgress || onlineSaveTimer) return;
       const data = pendingRemoteData;
       pendingRemoteData = null;
       applyData(data);
@@ -1579,8 +1678,8 @@
         if (!onlineReady) {
           await loadFromSupabase();
         }
-        await saveToSupabase();
-        setOnlineStatus("Online: manuell gespeichert", true);
+        const saved = await saveToSupabase();
+        if (saved) setOnlineStatus("Online: manuell gespeichert", true);
       } catch (err) {
         setOnlineStatus("Online-Speichern fehlgeschlagen", false);
         console.error(err);
@@ -1674,7 +1773,13 @@
           throw new Error("Ung&uuml;ltiges Dateiformat");
         }
 
-        applyPriceAccess(data.priceAccess);
+        const importedAccess = normalizePriceAccess(data.priceAccess);
+        if (importedAccess) {
+          priceAccess = importedAccess;
+          if (!priceCanEdit()) priceCredential = null;
+          cachePriceAccess();
+          renderPricePasswords();
+        }
         priceItems = data.priceItems.map(item => ({
           id: item.id || crypto.randomUUID(),
           name: item.name || "Artikel",
@@ -1721,6 +1826,7 @@
       }
     });
 
+    renderPricePasswords();
     renderPriceList();
     rebuildPersons();
     refreshAllArticleSelects();
