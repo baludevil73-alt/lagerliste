@@ -945,6 +945,33 @@
     let priceCredential = null;
     let priceAccessBase = JSON.parse(JSON.stringify(priceAccess));
     let priceItemsBase = null;
+    let personsBase = null;
+    function mergeSharedValue(base, local, remote) {
+      const copy = value => value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+      if (JSON.stringify(local) === JSON.stringify(base)) return copy(remote);
+      if (JSON.stringify(remote) === JSON.stringify(base)) return copy(local);
+      if (Array.isArray(base) && Array.isArray(local) && Array.isArray(remote)) {
+        const result = [];
+        for (let i = 0; i < base.length; i++) {
+          if (i >= local.length || i >= remote.length) continue;
+          result.push(mergeSharedValue(base[i], local[i], remote[i]));
+        }
+        result.push(...copy(remote.slice(base.length)));
+        local.slice(base.length).forEach(value => {
+          if (!remote.slice(base.length).some(other => JSON.stringify(other) === JSON.stringify(value))) result.push(copy(value));
+        });
+        return result;
+      }
+      if (base && local && remote && typeof base === "object" && typeof local === "object" && typeof remote === "object" && !Array.isArray(base)) {
+        const result = {};
+        for (const key of new Set([...Object.keys(base), ...Object.keys(local), ...Object.keys(remote)])) {
+          const value = mergeSharedValue(base[key], local[key], remote[key]);
+          if (value !== undefined) result[key] = value;
+        }
+        return result;
+      }
+      return copy(local);
+    }
     const priceAccessCacheKey = "lagerliste-price-access-v2-" + SUPABASE_URL;
     try {
       const cached = JSON.parse(localStorage.getItem(priceAccessCacheKey) || "null");
@@ -1387,13 +1414,36 @@
       onlineStatus.style.color = ok === true ? "#067647" : ok === false ? "#b42318" : "#667085";
     }
 
+    function captureListFocus() {
+      const active = document.activeElement;
+      const card = active?.closest?.(".person-card");
+      const row = active?.closest?.("#priceListBody tr");
+      if (!card && !row) return () => {};
+      const root = card || row;
+      const rootIndex = [...(card ? personsContainer.querySelectorAll(".person-card") : priceListBody.querySelectorAll("tr"))].indexOf(root);
+      const controlIndex = [...root.querySelectorAll("input, select, textarea")].indexOf(active);
+      const selection = [active.selectionStart, active.selectionEnd];
+      const scroll = [window.scrollX, window.scrollY];
+      return () => {
+        const nextRoot = (card ? personsContainer.querySelectorAll(".person-card") : priceListBody.querySelectorAll("tr"))[rootIndex];
+        const next = nextRoot?.querySelectorAll("input, select, textarea")[controlIndex];
+        if (next && !next.disabled) {
+          next.focus({ preventScroll: true });
+          if (selection[0] !== null) { try { next.setSelectionRange(...selection); } catch (_) {} }
+        }
+        window.scrollTo(...scroll);
+      };
+    }
+
     function applyData(data) {
       if (!data || !Array.isArray(data.priceItems) || !Array.isArray(data.persons)) {
         throw new Error("Ungueltige Daten");
       }
 
+      const restoreFocus = captureListFocus();
       applyPriceAccess(data.priceAccess);
       priceItemsBase = JSON.parse(JSON.stringify(data.priceItems));
+      personsBase = JSON.parse(JSON.stringify(data.persons));
       applyingRemote = true;
       if (onlineSaveTimer) {
         clearTimeout(onlineSaveTimer);
@@ -1412,9 +1462,10 @@
       calculateAll();
 
       applyingRemote = false;
+      restoreFocus();
     }
 
-    async function loadFromSupabase() {
+    async function loadFromSupabase(force = false) {
       setOnlineStatus("Online: lade gemeinsame Liste...", null);
 
       const { data, error } = await supabaseClient
@@ -1426,9 +1477,10 @@
       if (error) throw error;
 
       if (data && data.data && Array.isArray(data.data.priceItems) && Array.isArray(data.data.persons)) {
-        if (localDirty || isUserActivelyEditing()) {
+        if (localDirty || saveInProgress || (!force && isUserActivelyEditing())) {
           applyPriceAccess(data.data.priceAccess);
           if (!priceItemsBase) priceItemsBase = JSON.parse(JSON.stringify(data.data.priceItems));
+          if (!personsBase) personsBase = JSON.parse(JSON.stringify(data.data.persons));
           if (!localDirty) pendingRemoteData = data.data;
         } else {
           applyData(data.data);
@@ -1452,6 +1504,8 @@
         return false;
       }
 
+      clearTimeout(onlineSaveTimer);
+      onlineSaveTimer = null;
       saveInProgress = true;
       saveQueued = false;
       const savingVersion = localChangeVersion;
@@ -1468,6 +1522,8 @@
         if (readError) throw readError;
         if (!current || !current.data || !current.updated_at) throw new Error("Gemeinsame Liste konnte nicht sicher gelesen werden.");
         const itemsSnapshot = JSON.parse(JSON.stringify(payload.priceItems));
+        const personsSnapshot = JSON.parse(JSON.stringify(payload.persons));
+        if (personsBase) payload.persons = mergeSharedValue(personsBase, personsSnapshot, current.data.persons);
         payload.priceAccess = mergePriceAccess(priceAccessBase, accessSnapshot, current.data.priceAccess);
         payload.priceItems = mergePriceItems(priceItemsBase, itemsSnapshot, current.data.priceItems);
         const now = new Date(Math.max(Date.now(), Date.parse(current.updated_at) + 1)).toISOString();
@@ -1484,6 +1540,15 @@
           return existing ? Object.assign(existing, item) : item;
         });
         priceItemsBase = JSON.parse(JSON.stringify(payload.priceItems));
+        const mergedPersons = mergeSharedValue(personsSnapshot, collectData().persons, payload.persons);
+        personsBase = JSON.parse(JSON.stringify(payload.persons));
+        pendingRemoteData = null;
+        if (JSON.stringify(mergedPersons) !== JSON.stringify(collectData().persons)) {
+          const restoreFocus = captureListFocus();
+          rebuildPersons(mergedPersons);
+          restoreFocus();
+          calculateAll();
+        }
         cachePriceAccess();
         renderPricePasswords();
         if (!priceCanEdit()) priceCredential = null;
@@ -1512,13 +1577,18 @@
       // dieses Speichervorgangs wirklich nichts Neues geaendert wurde.
       if (savingVersion === localChangeVersion && !saveQueued) {
         localDirty = false;
-        pendingRemoteData = null;
+        flushPendingRemoteData();
         setOnlineStatus("Online: gespeichert", true);
       } else {
         localDirty = true;
         setOnlineStatus("Online: weitere Aenderungen werden gespeichert...", null);
         clearTimeout(onlineSaveTimer);
-        onlineSaveTimer = setTimeout(() => saveToSupabase(), 50);
+        onlineSaveTimer = setTimeout(() => { onlineSaveTimer = null; saveToSupabase(); }, 50);
+      }
+      if (!localDirty && refreshAfterSave) {
+        refreshAfterSave = false;
+        try { await loadFromSupabase(true); }
+        catch (err) { setOnlineStatus("Online: Aktualisieren fehlgeschlagen", false); console.error(err); }
       }
       return !localDirty;
     }
@@ -1541,12 +1611,18 @@
     let priceRefreshPending = false;
     let syncCheckRunning = false;
     let realtimeChannel = null;
+    let refreshAfterSave = false;
+    let lastEditAt = 0;
+    let compositionActive = false;
+    document.addEventListener("input", () => { lastEditAt = Date.now(); }, true);
+    document.addEventListener("compositionstart", () => { compositionActive = true; }, true);
+    document.addEventListener("compositionend", () => { compositionActive = false; lastEditAt = Date.now(); }, true);
 
     function isUserActivelyEditing() {
       const active = document.activeElement;
       if (!active) return false;
       if (!active.matches("input, select, textarea")) return false;
-      return !!active.closest(".person-card.unlocked") || pricePanel.contains(active);
+      return (compositionActive || Date.now() - lastEditAt < 1200) && (!!active.closest(".person-card.unlocked") || pricePanel.contains(active));
     }
 
     function applyRemoteDataSafely(remoteData) {
@@ -1691,6 +1767,7 @@
         await loadFromSupabase();
         subscribeToRealtime();
         setInterval(checkForOnlineChanges, 1000);
+        setInterval(flushPendingRemoteData, 250);
         window.addEventListener("focus", checkForOnlineChanges);
         document.addEventListener("visibilitychange", () => { if (!document.hidden) checkForOnlineChanges(); });
 
@@ -1702,13 +1779,24 @@
     }
 
     syncBtn.addEventListener("click", async () => {
+      syncBtn.disabled = true;
       try {
-        onlineReady = false;
-        await loadFromSupabase();
-        setOnlineStatus("Online: synchronisiert", true);
+        if (saveInProgress) {
+          refreshAfterSave = true;
+          setOnlineStatus("Online: wird direkt nach dem Speichern aktualisiert", null);
+          return;
+        }
+        if (!onlineReady) await loadFromSupabase();
+        if (localDirty || onlineSaveTimer) {
+          const saved = await saveToSupabase();
+          if (!saved) return;
+        }
+        await loadFromSupabase(true);
       } catch (err) {
         setOnlineStatus("Online-Verbindung fehlgeschlagen", false);
         console.error(err);
+      } finally {
+        syncBtn.disabled = false;
       }
     });
 
