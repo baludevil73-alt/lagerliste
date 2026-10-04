@@ -1201,7 +1201,7 @@
         let personStock = 0;
         let summaryRows = "";
         // Alle gleichen Artikel dieser Person werden aus Hauptlager und
-        // Extratabellen zusammengefÃ¼hrt.
+        // Extratabellen zusammengefuehrt.
         const personArticleTotals = new Map();
         function addPersonArticleTotal(article, stock) {
           if (!article) return;
@@ -1362,9 +1362,9 @@
 
         const personMergedSummary = `
           <div style="margin-top:18px;padding-top:14px;border-top:2px solid #ffd84d;">
-            <h3>Gesamt je Artikel â€“ ${escapeHtml(name)}</h3>
+            <h3>Gesamt je Artikel &ndash; ${escapeHtml(name)}</h3>
             <div class="storage-info" style="margin-bottom:10px;">
-              Gleiche Artikel aus Hauptlager und allen Extratabellen dieser Person sind hier zusammengefÃ¼hrt.
+              Gleiche Artikel aus Hauptlager und allen Extratabellen dieser Person sind hier zusammengefuehrt.
             </div>
             <div class="table-wrap">
               <table style="min-width:520px;">
