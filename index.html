@@ -1200,6 +1200,19 @@
         let personAlt = 0;
         let personStock = 0;
         let summaryRows = "";
+        // Alle gleichen Artikel dieser Person werden aus Hauptlager und
+        // Extratabellen zusammengefÃ¼hrt.
+        const personArticleTotals = new Map();
+        function addPersonArticleTotal(article, stock) {
+          if (!article) return;
+          const current = personArticleTotals.get(article.id) || {
+            name: article.name,
+            stock: 0
+          };
+          current.name = article.name;
+          current.stock += stock;
+          personArticleTotals.set(article.id, current);
+        }
 
         card.querySelector(":scope > .table-wrap tbody").querySelectorAll("tr").forEach(row => {
           const article = getPriceItemById(row.querySelector(".article-select").value);
@@ -1214,6 +1227,7 @@
           personStock += stock;
           personGreen += greenTotal;
           personAlt += altTotal;
+          addPersonArticleTotal(article, stock);
 
           row.querySelector(".unit-price").textContent = euro(unitPrice);
           row.querySelector(".green-total").textContent = euro(greenTotal);
@@ -1271,6 +1285,7 @@
             extraStock += stock;
             personGreen += greenTotal;
             personAlt += altTotal;
+            addPersonArticleTotal(article, stock);
             row.querySelector(".unit-price").textContent = euro(unitPrice);
             row.querySelector(".green-total").textContent = euro(greenTotal);
             row.querySelector(".alt-total").textContent = euro(altTotal);
@@ -1335,6 +1350,37 @@
           summaryRows = `<tr><td colspan="6">Noch keine Artikel ausgew&auml;hlt.</td></tr>`;
         }
 
+        const personTotalRows = [...personArticleTotals.values()]
+          .sort((a, b) => a.name.localeCompare(b.name, "de"))
+          .map(item => `
+            <tr>
+              <td>${escapeHtml(item.name)}</td>
+              <td class="number">${item.stock.toLocaleString("de-DE")}</td>
+            </tr>
+          `)
+          .join("");
+
+        const personMergedSummary = `
+          <div style="margin-top:18px;padding-top:14px;border-top:2px solid #ffd84d;">
+            <h3>Gesamt je Artikel â€“ ${escapeHtml(name)}</h3>
+            <div class="storage-info" style="margin-bottom:10px;">
+              Gleiche Artikel aus Hauptlager und allen Extratabellen dieser Person sind hier zusammengefÃ¼hrt.
+            </div>
+            <div class="table-wrap">
+              <table style="min-width:520px;">
+                <thead>
+                  <tr>
+                    <th>Artikel</th>
+                    <th>Gesamtmenge</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${personTotalRows || '<tr><td colspan="2">Noch keine Artikel ausgewaehlt.</td></tr>'}
+                </tbody>
+              </table>
+            </div>
+          </div>`;
+
         const block = document.createElement("div");
         block.className = "summary-person";
         block.innerHTML = `
@@ -1361,6 +1407,7 @@
             </table>
           </div>
           ${extraSummaryHtml}
+          ${personMergedSummary}
           <div class="summary-person-total">
             Gr&uuml;ngeld: ${euro(personGreen)}
             &nbsp; | &nbsp;
