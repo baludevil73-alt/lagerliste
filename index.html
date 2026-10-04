@@ -487,7 +487,7 @@
       <button type="button" class="load-btn" id="syncBtn">Jetzt aktualisieren</button>
       <button type="button" class="save-btn" id="onlineSaveBtn">Jetzt online speichern</button>
       <input type="file" id="fileInput" accept=".json,application/json" hidden>
-      <span id="onlineStatus" style="align-self:center;font-weight:bold;color:#667085;">Online: verbindet...</span><span style="align-self:center;color:#667085;font-size:13px;">Automatischer Abgleich jede Sekunde</span>
+      <span id="onlineStatus" style="align-self:center;font-weight:bold;color:#667085;">Online: verbindet...</span><span style="align-self:center;color:#667085;font-size:13px;">Automatischer Abgleich im Hintergrund</span>
       <span id="syncDetails" style="align-self:center;font-size:13px;">Version: Sync-4 | Noch keine Serverbestaetigung</span>
     </div>
 
@@ -1555,10 +1555,21 @@
         personsBase = JSON.parse(JSON.stringify(payload.persons));
         pendingRemoteData = null;
         if (JSON.stringify(mergedPersons) !== JSON.stringify(collectData().persons)) {
-          const restoreFocus = captureListFocus();
-          rebuildPersons(mergedPersons);
-          restoreFocus();
-          calculateAll();
+          // Niemals den gerade bearbeiteten Personenbereich waehrend der Eingabe
+          // neu aufbauen. Der komplette DOM-Neuaufbau ersetzt sonst das aktive
+          // Eingabefeld und kann Cursor, Scrollposition und Eingaben verlieren.
+          if (isUserActivelyEditing()) {
+            pendingRemoteData = {
+              ...savedRow.data,
+              persons: mergedPersons
+            };
+            setOnlineStatus("Online: weitere Aenderung wartet bis Eingabe beendet ist", null);
+          } else {
+            const restoreFocus = captureListFocus();
+            rebuildPersons(mergedPersons);
+            restoreFocus();
+            calculateAll();
+          }
         }
         cachePriceAccess();
         renderPricePasswords();
@@ -1632,9 +1643,15 @@
 
     function isUserActivelyEditing() {
       const active = document.activeElement;
-      if (!active) return false;
-      if (!active.matches("input, select, textarea")) return false;
-      return (compositionActive || Date.now() - lastEditAt < 1200) && (!!active.closest(".person-card.unlocked") || pricePanel.contains(active));
+      if (!active || !active.matches("input, select, textarea")) return false;
+
+      // Ein aktives Eingabefeld bleibt bis zum Verlassen des Feldes geschuetzt.
+      // Die fruehere 1,2-Sekunden-Frist war zu kurz: Nach einer kurzen Pause
+      // konnte ein anderer Benutzer einen kompletten DOM-Neuaufbau ausloesen.
+      const personCard = active.closest(".person-card");
+      const inUnlockedPerson = !!personCard && personCard.classList.contains("unlocked");
+      const inPricePanel = pricePanel.contains(active);
+      return compositionActive || inUnlockedPerson || inPricePanel;
     }
 
     function applyRemoteDataSafely(remoteData) {
@@ -1676,7 +1693,11 @@
     }
 
     document.addEventListener("focusout", () => {
+      // Erst nach allen focus/change/input-Handlern pruefen, ob wirklich kein
+      // Eingabefeld mehr aktiv ist. So wird ein neuer Fokus nicht versehentlich
+      // zwischen zwei Feldern von einem Remote-Refresh ueberholt.
       setTimeout(flushPendingRemoteData, 0);
+      setTimeout(flushPendingRemoteData, 100);
     });
 
     async function checkForOnlineChanges() {
