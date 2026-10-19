@@ -472,7 +472,21 @@
     .plate-info input { flex:1; min-width:260px; padding:8px 10px; border:1px solid #54718d; border-radius:6px; background:#0b243b; color:#fff; }
     .plate-info input:focus { outline:3px solid rgba(255,216,77,.32); border-color:#ffd84d; }
 
-</style>
+
+    /* Eigenstaendiger Sonderpreis-Rechner je Person */
+    .special-calculator { margin-top:18px; padding:16px; border:2px solid #ffd84d; border-radius:10px; background:#0b243b; }
+    .special-calculator h3 { color:#ffd84d; margin:0 0 12px; }
+    .special-fields { display:grid; grid-template-columns:repeat(3,minmax(160px,1fr)); gap:14px; }
+    .special-fields label { display:block; font-weight:bold; color:#ffd84d; }
+    .special-fields input { display:block; width:100%; margin-top:7px; padding:11px; border:1px solid #54718d; border-radius:6px; background:#102d49; color:#fff; font-size:17px; }
+    .special-fields output { display:block; margin-top:7px; padding:11px; min-height:44px; border:1px solid #54718d; border-radius:6px; font-size:17px; font-weight:bold; color:#fff; }
+    @media(max-width:700px){.special-fields{grid-template-columns:1fr;}}
+    /* Die Lager-Tabellen bleiben reine Lager- und Gruengeld-Tabellen. */
+    .person-card .table-wrap table tr > :nth-child(5),
+    .person-card .table-wrap table tr > :nth-child(6),
+    .person-card .table-wrap table tr > :nth-child(7) { display:none; }
+    .person-card .person-alt-total { display:none; }
+  </style>
 </head>
 <body>
   <div class="container">
@@ -757,6 +771,20 @@
         <div class="extra-tables protected-control"></div>
         <button type="button" class="remove-person-btn protected-control" style="margin-top:12px;">Person entfernen</button>
 
+        <section class="special-calculator protected-control" aria-label="Sonderpreis-Rechner">
+          <h3>Sonderpreis-Rechner</h3>
+          <div class="special-fields">
+            <label>Sonderpreis (&euro;)
+              <input type="number" class="special-base" min="0" step="0.01" value="${Math.max(0, Number(saved?.specialCalculator?.price) || 0)}">
+            </label>
+            <label>Abzug (0-100 %)
+              <input type="number" class="special-percent" min="0" max="100" step="1" value="${Math.min(100, Math.max(0, Number(saved?.specialCalculator?.percent ?? 30)))}">
+            </label>
+            <label>Nettopreis nach Abzug
+              <output class="special-net">0,00 &euro;</output>
+            </label>
+          </div>
+        </section>
         <div class="person-total">
           Gr&uuml;ngeld: <span class="person-green-total">0,00 &euro;</span>
           &nbsp; | &nbsp;
@@ -764,6 +792,19 @@
         </div>
       `;
 
+      const specialBase = card.querySelector(".special-base");
+      const specialPercent = card.querySelector(".special-percent");
+      const updateSpecial = () => {
+        const price = Math.max(0, Number(specialBase.value) || 0);
+        const percent = Math.min(100, Math.max(0, Number(specialPercent.value) || 0));
+        card.querySelector(".special-net").textContent = euro(price * (1 - percent / 100));
+      };
+      [specialBase, specialPercent].forEach(input => input.addEventListener("input", () => {
+        updateSpecial();
+        calculateAll();
+        scheduleOnlineSave();
+      }));
+      updateSpecial();
       const warehouse = card.querySelector(".warehouse");
       const customInput = card.querySelector(".custom-capacity");
       warehouse.value = savedWarehouse;
@@ -1413,6 +1454,12 @@
           </div>
           ${extraSummaryHtml}
           ${personMergedSummary}
+          <div style="margin-top:14px;padding:12px;border:1px solid #ffd84d;border-radius:8px;">
+            <strong>Sonderpreis-Rechner:</strong>
+            ${euro(Math.max(0, Number(card.querySelector(".special-base").value) || 0))}
+            &nbsp; | &nbsp; Abzug: ${Math.min(100, Math.max(0, Number(card.querySelector(".special-percent").value) || 0))} %
+            &nbsp; | &nbsp; Nettopreis: ${card.querySelector(".special-net").textContent}
+          </div>
           <div class="summary-person-total">
             Gr&uuml;ngeld: ${euro(personGreen)}
             &nbsp; | &nbsp;
@@ -1904,6 +1951,10 @@
         warehouse: card.querySelector(".warehouse").value,
         customCapacity: Number(card.querySelector(".custom-capacity").value) || 0,
         plate: card.querySelector(".plate-input")?.value || "",
+        specialCalculator: {
+          price: Math.max(0, Number(card.querySelector(".special-base").value) || 0),
+          percent: Math.min(100, Math.max(0, Number(card.querySelector(".special-percent").value) || 0))
+        },
         rows: [...card.querySelector(":scope > .table-wrap tbody").querySelectorAll("tr")].map(row => ({
           articleId: row.querySelector(".article-select").value,
           stock: Number(row.querySelector(".stock-status-input").value) || 0,
