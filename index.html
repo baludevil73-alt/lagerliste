@@ -516,7 +516,7 @@
         <span>Gesamtes Gr&uuml;ngeld</span>
         <span id="grandGreenTotal">0,00 &euro;</span>
 
-        <span>Netto-Summe (&minus;30 %)</span>
+        <span>Netto-Summe nach Abzug</span>
         <span id="grandAltTotal">0,00 &euro;</span>
       </div>
     </div>
@@ -573,7 +573,7 @@
   <script>
     const SUPABASE_URL = "https://rsyjesffnjwafhiiufgv.supabase.co";
     const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_W1P8RUAbx4W_ecL10PN9uA_SAsZrew6";
-    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+    const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
     const startRowsPerPerson = 3;
     const defaultPersons = [
       { name: "Person 1", password: "Balu" },
@@ -659,6 +659,7 @@
         <td>
           <input type="number" class="alt-price-input" min="0" step="0.01" value="${Number(data.altPrice) || 0}" placeholder="Preis eingeben">
         </td>
+        <td><input type="number" class="discount-input" min="0" max="100" step="1" value="${Math.min(100, Math.max(0, Number(data.discount ?? 30)))}" aria-label="Abzug in Prozent"></td>
         <td class="number alt-total">0,00 &euro;</td>
         <td class="actions">
           <button type="button" class="delete-btn">L&ouml;schen</button>
@@ -743,7 +744,7 @@
                 <th>Einzelpreis</th>
                 <th>Gr&uuml;ngeld</th>
                 <th>Sonderpreis</th>
-                <th>Netto-Summe (&minus;30 %)</th>
+                <th>Abzug (0â€“100 %)</th><th>Nettopreis nach Abzug</th>
                 <th>Aktion</th>
               </tr>
             </thead>
@@ -759,7 +760,7 @@
         <div class="person-total">
           Gr&uuml;ngeld: <span class="person-green-total">0,00 &euro;</span>
           &nbsp; | &nbsp;
-          Netto-Summe (&minus;30 %): <span class="person-alt-total">0,00 &euro;</span>
+          Netto-Summe nach Abzug: <span class="person-alt-total">0,00 &euro;</span>
         </div>
       `;
 
@@ -809,7 +810,7 @@
             </div>
           </div>
           <div class="table-wrap"><table><thead><tr>
-            <th>Artikel</th><th>Lagerstatus</th><th>Einzelpreis</th><th>Gruengeld</th><th>Sonderpreis</th><th>Netto-Summe (-30 %)</th><th>Aktion</th>
+            <th>Artikel</th><th>Lagerstatus</th><th>Einzelpreis</th><th>Gruengeld</th><th>Sonderpreis</th><th>Abzug (0â€“100 %)</th><th>Nettopreis nach Abzug</th><th>Aktion</th>
           </tr></thead><tbody class="extra-table-body"></tbody></table></div>
           <button type="button" class="add-btn add-extra-row-btn">+ Artikel hinzufuegen</button>`;
         const extraWarehouseSelect = wrap.querySelector(".extra-warehouse");
@@ -1221,8 +1222,9 @@
           const altPrice = Math.max(0, parseFloat(row.querySelector(".alt-price-input").value) || 0);
 
           const greenTotal = stock * unitPrice;
+          const discount = Math.min(100, Math.max(0, Number(row.querySelector(".discount-input").value) || 0));
           const altGross = stock * altPrice;
-          const altTotal = altGross * 0.70;
+          const altTotal = altGross * (1 - discount / 100);
 
           personStock += stock;
           personGreen += greenTotal;
@@ -1241,6 +1243,7 @@
                 <td class="number">${euro(unitPrice)}</td>
                 <td class="number">${euro(greenTotal)}</td>
                 <td class="number">${euro(altPrice)}</td>
+                <td class="number">${discount} %</td>
                 <td class="number">${euro(altTotal)}</td>
               </tr>
             `;
@@ -1281,7 +1284,8 @@
             const unitPrice = article ? Number(article.price) || 0 : 0;
             const altPrice = Math.max(0, parseFloat(row.querySelector(".alt-price-input").value) || 0);
             const greenTotal = stock * unitPrice;
-            const altTotal = stock * altPrice * 0.70;
+            const discount = Math.min(100, Math.max(0, Number(row.querySelector(".discount-input").value) || 0));
+            const altTotal = stock * altPrice * (1 - discount / 100);
             extraStock += stock;
             personGreen += greenTotal;
             personAlt += altTotal;
@@ -1297,6 +1301,7 @@
                   <td class="number">${euro(unitPrice)}</td>
                   <td class="number">${euro(greenTotal)}</td>
                   <td class="number">${euro(altPrice)}</td>
+                  <td class="number">${discount} %</td>
                   <td class="number">${euro(altTotal)}</td>
                 </tr>`;
             }
@@ -1322,7 +1327,7 @@
             extraStorageInfo.className = "extra-storage-info storage-info";
           }
 
-          if (!extraSummaryRows) extraSummaryRows = `<tr><td colspan="6">Noch keine Artikel ausgewaehlt.</td></tr>`;
+          if (!extraSummaryRows) extraSummaryRows = `<tr><td colspan="7">Noch keine Artikel ausgewaehlt.</td></tr>`;
           const extraTitle = extraTable.querySelector(".extra-table-title")?.value.trim() || `Extratabelle ${extraIndex + 1}`;
           const extraInfo = extraTable.querySelector(".extra-info-input")?.value || "-";
           extraSummaryHtml += `
@@ -1335,7 +1340,7 @@
                   : "keine Lagergroesse eingetragen"}
               </div>
               <div class="table-wrap"><table><thead><tr>
-                <th>Artikel</th><th>Lagerstatus</th><th>Einzelpreis</th><th>Gruengeld</th><th>Sonderpreis</th><th>Netto-Summe (-30 %)</th>
+                <th>Artikel</th><th>Lagerstatus</th><th>Einzelpreis</th><th>Gruengeld</th><th>Sonderpreis</th><th>Abzug (0â€“100 %)</th><th>Nettopreis nach Abzug</th>
               </tr></thead><tbody>${extraSummaryRows}</tbody></table></div>
             </div>`;
         });
@@ -1347,7 +1352,7 @@
         card.querySelector(".person-alt-total").textContent = euro(personAlt);
 
         if (!summaryRows) {
-          summaryRows = `<tr><td colspan="6">Noch keine Artikel ausgew&auml;hlt.</td></tr>`;
+          summaryRows = `<tr><td colspan="7">Noch keine Artikel ausgew&auml;hlt.</td></tr>`;
         }
 
         const personTotalRows = [...personArticleTotals.values()]
@@ -1400,7 +1405,7 @@
                   <th>Einzelpreis</th>
                   <th>Gr&uuml;ngeld</th>
                   <th>Sonderpreis</th>
-                  <th>Netto-Summe (&minus;30 %)</th>
+                  <th>Abzug (0â€“100 %)</th><th>Nettopreis nach Abzug</th>
                 </tr>
               </thead>
               <tbody>${summaryRows}</tbody>
@@ -1411,7 +1416,7 @@
           <div class="summary-person-total">
             Gr&uuml;ngeld: ${euro(personGreen)}
             &nbsp; | &nbsp;
-            Netto-Summe (&minus;30 %): ${euro(personAlt)}
+            Netto-Summe nach Abzug: ${euro(personAlt)}
           </div>
         `;
         summaryPersons.appendChild(block);
@@ -1472,7 +1477,8 @@
       const root = card || row;
       const rootIndex = [...(card ? personsContainer.querySelectorAll(".person-card") : priceListBody.querySelectorAll("tr"))].indexOf(root);
       const controlIndex = [...root.querySelectorAll("input, select, textarea")].indexOf(active);
-      const selection = [active.selectionStart, active.selectionEnd];
+      const selection = [null, null];
+      try { selection[0] = active.selectionStart; selection[1] = active.selectionEnd; } catch (_) {}
       const scroll = [window.scrollX, window.scrollY];
       return () => {
         const nextRoot = (card ? personsContainer.querySelectorAll(".person-card") : priceListBody.querySelectorAll("tr"))[rootIndex];
@@ -1901,7 +1907,8 @@
         rows: [...card.querySelector(":scope > .table-wrap tbody").querySelectorAll("tr")].map(row => ({
           articleId: row.querySelector(".article-select").value,
           stock: Number(row.querySelector(".stock-status-input").value) || 0,
-          altPrice: Number(row.querySelector(".alt-price-input").value) || 0
+          altPrice: Number(row.querySelector(".alt-price-input").value) || 0,
+          discount: Math.min(100, Math.max(0, Number(row.querySelector(".discount-input").value) || 0))
         })),
         extraTables: [...card.querySelectorAll(".extra-table")].map(table => ({
           title: table.querySelector(".extra-table-title")?.value || "Extratabelle",
@@ -1911,7 +1918,8 @@
           rows: [...table.querySelectorAll(".extra-table-body tr")].map(row => ({
             articleId: row.querySelector(".article-select").value,
             stock: Number(row.querySelector(".stock-status-input").value) || 0,
-            altPrice: Number(row.querySelector(".alt-price-input").value) || 0
+            altPrice: Number(row.querySelector(".alt-price-input").value) || 0,
+          discount: Math.min(100, Math.max(0, Number(row.querySelector(".discount-input").value) || 0))
           }))
         }))
       }));
