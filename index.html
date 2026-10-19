@@ -481,6 +481,12 @@
     .special-fields input { display:block; width:100%; margin-top:7px; padding:11px; border:1px solid #54718d; border-radius:6px; background:#102d49; color:#fff; font-size:17px; }
     .special-fields output { display:block; margin-top:7px; padding:11px; min-height:44px; border:1px solid #54718d; border-radius:6px; font-size:17px; font-weight:bold; color:#fff; }
     @media(max-width:700px){.special-fields{grid-template-columns:1fr;}}
+    .special-currency-wrap { position:relative; display:block; margin-top:7px; }
+    .special-fields .special-currency-wrap input { margin-top:0; padding-right:46px; }
+    .special-currency-symbol { position:absolute; right:15px; top:50%; transform:translateY(-50%); color:#ffd84d; font-size:18px; font-weight:bold; pointer-events:none; }
+    .article-currency-wrap { position:relative; display:block; min-width:135px; }
+    .article-currency-wrap .alt-price-input { padding-right:30px; text-align:right; font-variant-numeric:tabular-nums; }
+    .article-currency-symbol { position:absolute; right:10px; top:50%; transform:translateY(-50%); color:#ffd84d; font-weight:bold; pointer-events:none; }
     /* Alle acht Artikelspalten einschliesslich Sonderpreis sichtbar lassen. */
     .person-card .table-wrap { overflow-x: auto; }
     .person-card .table-wrap table { min-width: 1180px; }
@@ -629,6 +635,17 @@
       { id: crypto.randomUUID(), name: "Artikel 2", price: 0 }
     ];
 
+    function parseSpecialMoney(value) {
+      if (typeof value === "number") return Math.max(0, value || 0);
+      const cleaned = String(value ?? "").replace(/[^0-9,.-]/g, "").replace(/\./g, "").replace(",", ".");
+      return Math.max(0, Number(cleaned) || 0);
+    }
+    function formatSpecialMoney(value, fixed = true) {
+      return new Intl.NumberFormat("de-DE", {
+        minimumFractionDigits: fixed ? 2 : 0,
+        maximumFractionDigits: 2
+      }).format(parseSpecialMoney(value));
+    }
     function euro(value) {
       return new Intl.NumberFormat("de-DE", {
         style: "currency",
@@ -673,7 +690,7 @@
         <td class="number unit-price">0,00 &euro;</td>
         <td class="number green-total">0,00 &euro;</td>
         <td>
-          <input type="number" class="alt-price-input" min="0" step="0.01" value="${Number(data.altPrice) || 0}" placeholder="Preis eingeben">
+          <span class="article-currency-wrap"><input type="text" inputmode="decimal" class="alt-price-input" value="${formatSpecialMoney(Number(data.altPrice) || 0)}" placeholder="0,00" aria-label="Sonderpreis in Euro"><span class="article-currency-symbol" aria-hidden="true">&euro;</span></span>
         </td>
         <td><input type="number" class="discount-input" min="0" max="100" step="1" value="${Math.min(100, Math.max(0, Number(data.discount ?? 30)))}" aria-label="Abzug in Prozent"></td>
         <td class="number alt-total">0,00 &euro;</td>
@@ -687,6 +704,24 @@
         calculateAll();
       });
 
+      const articlePriceInput = row.querySelector(".alt-price-input");
+      articlePriceInput.addEventListener("focus", () => articlePriceInput.select());
+      articlePriceInput.addEventListener("input", () => {
+        const before = articlePriceInput.value;
+        const cursor = articlePriceInput.selectionStart ?? before.length;
+        const digitsBefore = before.slice(0, cursor).replace(/[^0-9]/g, "").length;
+        const formatted = formatSpecialMoney(before, false);
+        articlePriceInput.value = formatted;
+        let pos = 0, digits = 0;
+        while (pos < formatted.length && digits < digitsBefore) {
+          if (/[0-9]/.test(formatted[pos])) digits++;
+          pos++;
+        }
+        articlePriceInput.setSelectionRange(pos, pos);
+      });
+      articlePriceInput.addEventListener("blur", () => {
+        articlePriceInput.value = formatSpecialMoney(articlePriceInput.value);
+      });
       row.querySelector(".article-select").addEventListener("change", calculateAll);
 
       return row;
@@ -777,7 +812,7 @@
           <h3>Sonderpreis-Rechner</h3>
           <div class="special-fields">
             <label>Sonderpreis (&euro;)
-              <input type="number" class="special-base" min="0" step="0.01" value="${Math.max(0, Number(saved?.specialCalculator?.price) || 0)}">
+              <span class="special-currency-wrap"><input type="text" inputmode="decimal" class="special-base" value="${formatSpecialMoney(saved?.specialCalculator?.price ?? 0)}" aria-label="Sonderpreis in Euro"><span class="special-currency-symbol" aria-hidden="true">&euro;</span></span>
             </label>
             <label>Abzug (0-100 %)
               <input type="number" class="special-percent" min="0" max="100" step="1" value="${Math.min(100, Math.max(0, Number(saved?.specialCalculator?.percent ?? 30)))}">
@@ -797,10 +832,27 @@
       const specialBase = card.querySelector(".special-base");
       const specialPercent = card.querySelector(".special-percent");
       const updateSpecial = () => {
-        const price = Math.max(0, Number(specialBase.value) || 0);
+        const price = parseSpecialMoney(specialBase.value);
         const percent = Math.min(100, Math.max(0, Number(specialPercent.value) || 0));
         card.querySelector(".special-net").textContent = euro(price * (1 - percent / 100));
       };
+      specialBase.addEventListener("focus", () => specialBase.select());
+      specialBase.addEventListener("input", () => {
+        const before = specialBase.value;
+        const cursor = specialBase.selectionStart ?? before.length;
+        const digitsBefore = before.slice(0, cursor).replace(/[^0-9]/g, "").length;
+        const formatted = formatSpecialMoney(before, false);
+        specialBase.value = formatted;
+        let pos = 0, digits = 0;
+        while (pos < formatted.length && digits < digitsBefore) {
+          if (/[0-9]/.test(formatted[pos])) digits++;
+          pos++;
+        }
+        specialBase.setSelectionRange(pos, pos);
+      });
+      specialBase.addEventListener("blur", () => {
+        specialBase.value = formatSpecialMoney(specialBase.value);
+      });
       [specialBase, specialPercent].forEach(input => input.addEventListener("input", () => {
         updateSpecial();
         calculateAll();
@@ -1262,7 +1314,7 @@
           const article = getPriceItemById(row.querySelector(".article-select").value);
           const stock = Math.max(0, parseFloat(row.querySelector(".stock-status-input").value) || 0);
           const unitPrice = article ? Number(article.price) || 0 : 0;
-          const altPrice = Math.max(0, parseFloat(row.querySelector(".alt-price-input").value) || 0);
+          const altPrice = Math.max(0, parseSpecialMoney(row.querySelector(".alt-price-input").value));
 
           const greenTotal = stock * unitPrice;
           const discount = Math.min(100, Math.max(0, Number(row.querySelector(".discount-input").value) || 0));
@@ -1325,7 +1377,7 @@
             const article = getPriceItemById(row.querySelector(".article-select").value);
             const stock = Math.max(0, parseFloat(row.querySelector(".stock-status-input").value) || 0);
             const unitPrice = article ? Number(article.price) || 0 : 0;
-            const altPrice = Math.max(0, parseFloat(row.querySelector(".alt-price-input").value) || 0);
+            const altPrice = Math.max(0, parseSpecialMoney(row.querySelector(".alt-price-input").value));
             const greenTotal = stock * unitPrice;
             const discount = Math.min(100, Math.max(0, Number(row.querySelector(".discount-input").value) || 0));
             const altTotal = stock * altPrice * (1 - discount / 100);
@@ -1458,7 +1510,7 @@
           ${personMergedSummary}
           <div style="margin-top:14px;padding:12px;border:1px solid #ffd84d;border-radius:8px;">
             <strong>Sonderpreis-Rechner:</strong>
-            ${euro(Math.max(0, Number(card.querySelector(".special-base").value) || 0))}
+            ${euro(parseSpecialMoney(card.querySelector(".special-base").value))}
             &nbsp; | &nbsp; Abzug: ${Math.min(100, Math.max(0, Number(card.querySelector(".special-percent").value) || 0))} %
             &nbsp; | &nbsp; Nettopreis: ${card.querySelector(".special-net").textContent}
           </div>
@@ -1954,13 +2006,13 @@
         customCapacity: Number(card.querySelector(".custom-capacity").value) || 0,
         plate: card.querySelector(".plate-input")?.value || "",
         specialCalculator: {
-          price: Math.max(0, Number(card.querySelector(".special-base").value) || 0),
+          price: parseSpecialMoney(card.querySelector(".special-base").value),
           percent: Math.min(100, Math.max(0, Number(card.querySelector(".special-percent").value) || 0))
         },
         rows: [...card.querySelector(":scope > .table-wrap tbody").querySelectorAll("tr")].map(row => ({
           articleId: row.querySelector(".article-select").value,
           stock: Number(row.querySelector(".stock-status-input").value) || 0,
-          altPrice: Number(row.querySelector(".alt-price-input").value) || 0,
+          altPrice: parseSpecialMoney(row.querySelector(".alt-price-input").value),
           discount: Math.min(100, Math.max(0, Number(row.querySelector(".discount-input").value) || 0))
         })),
         extraTables: [...card.querySelectorAll(".extra-table")].map(table => ({
@@ -1971,7 +2023,7 @@
           rows: [...table.querySelectorAll(".extra-table-body tr")].map(row => ({
             articleId: row.querySelector(".article-select").value,
             stock: Number(row.querySelector(".stock-status-input").value) || 0,
-            altPrice: Number(row.querySelector(".alt-price-input").value) || 0,
+            altPrice: parseSpecialMoney(row.querySelector(".alt-price-input").value),
           discount: Math.min(100, Math.max(0, Number(row.querySelector(".discount-input").value) || 0))
           }))
         }))
