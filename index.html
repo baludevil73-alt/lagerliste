@@ -481,11 +481,13 @@
     .special-fields input { display:block; width:100%; margin-top:7px; padding:11px; border:1px solid #54718d; border-radius:6px; background:#102d49; color:#fff; font-size:17px; }
     .special-fields output { display:block; margin-top:7px; padding:11px; min-height:44px; border:1px solid #54718d; border-radius:6px; font-size:17px; font-weight:bold; color:#fff; }
     @media(max-width:700px){.special-fields{grid-template-columns:1fr;}}
-    /* Die Lager-Tabellen bleiben reine Lager- und Gruengeld-Tabellen. */
+    /* Alle acht Artikelspalten einschliesslich Sonderpreis sichtbar lassen. */
+    .person-card .table-wrap { overflow-x: auto; }
+    .person-card .table-wrap table { min-width: 1180px; }
     .person-card .table-wrap table tr > :nth-child(5),
     .person-card .table-wrap table tr > :nth-child(6),
-    .person-card .table-wrap table tr > :nth-child(7) { display:none; }
-    .person-card .person-alt-total { display:none; }
+    .person-card .table-wrap table tr > :nth-child(7) { display: table-cell; }
+    .person-card .person-alt-total { display: inline; }
   </style>
 </head>
 <body>
