@@ -494,6 +494,48 @@
     .person-card .table-wrap table tr > :nth-child(6),
     .person-card .table-wrap table tr > :nth-child(7) { display: table-cell; }
     .person-card .person-alt-total { display: inline; }
+
+    /* ===== Neues Premium-Design: Schwarz / Weiss / dezentes Gold ===== */
+    :root { color-scheme: dark; --bg:#0b0b0c; --surface:#171719; --surface2:#202023; --field:#111113; --line:#414044; --gold:#c6a45d; --goldlight:#e4cb91; --white:#f6f5f2; --muted:#b9b8b5; }
+    body { background:radial-gradient(ellipse at 85% 0%,#252018 0%,transparent 36%),linear-gradient(145deg,#09090a,#171719 65%,#0b0b0c) !important; color:var(--white) !important; min-height:100vh; }
+    .container { max-width:1350px; margin:32px auto; }
+    h1 { color:var(--white) !important; letter-spacing:.025em; font-size:clamp(26px,3vw,38px); }
+    h1::after { content:""; display:block; width:88px; height:3px; background:var(--gold); margin-top:12px; border-radius:3px; }
+    h2,h3,.panel h2,.person-card h2,.summary h2,.summary h3,.special-calculator h3 { color:var(--goldlight) !important; }
+    .subtitle { color:var(--muted) !important; }
+    .panel,.person-card,.summary { background:var(--surface) !important; color:var(--white) !important; border:1px solid var(--line) !important; border-radius:14px; box-shadow:0 12px 35px rgba(0,0,0,.28) !important; }
+    .person-card { border-top:4px solid var(--gold) !important; }
+    .summary { border:1px solid var(--gold) !important; }
+    label,.person-total,.summary-person-total,.price-list-total,.price-list-note,.hint { color:var(--white) !important; }
+    .hint,.price-list-note { color:var(--muted) !important; }
+    .table-wrap,table { background:var(--field) !important; border-color:var(--line) !important; }
+    .table-wrap { border:1px solid var(--line) !important; border-radius:9px; }
+    table thead th,th { background:#0c0c0d !important; color:var(--goldlight) !important; border-color:var(--line) !important; font-weight:700; }
+    table tbody td,td { background:#242426 !important; color:var(--white) !important; border-color:#414044 !important; }
+    table tbody tr:nth-child(even) td,tbody tr:nth-child(even) td { background:#1d1d1f !important; }
+    table tbody tr:hover td { background:#30302e !important; }
+    input,select,textarea,td input,td select,.person-name,.warehouse-box select,.warehouse-box input,.person-lock input,.person-admin input,.plate-info input,.extra-table-title,.special-fields input,.special-fields output { background:var(--field) !important; color:var(--white) !important; border:1px solid #57534c !important; border-radius:7px; }
+    input::placeholder,table tbody input::placeholder { color:#a5a39e !important; }
+    select option,table tbody select option { background:#161618 !important; color:var(--white) !important; }
+    input:focus,select:focus,textarea:focus,td input:focus,td select:focus,.plate-info input:focus { outline:2px solid rgba(198,164,93,.42) !important; outline-offset:1px; border-color:var(--gold) !important; }
+    button { border-radius:8px; transition:transform .15s,filter .15s,background .15s; }
+    button:hover:not(:disabled) { transform:translateY(-1px); filter:brightness(1.1); }
+    button:disabled { opacity:.45; cursor:not-allowed; }
+    .add-btn,.save-btn,.unlock-btn { background:var(--gold) !important; color:#121110 !important; font-weight:700; }
+    .load-btn,.lock-btn { background:#353436 !important; color:var(--white) !important; border:1px solid #77716a !important; }
+    .delete-btn,.remove-person-btn { background:#502a2a !important; color:#fff !important; border:1px solid #865050 !important; }
+    .storage-ok { color:var(--goldlight) !important; }
+    .storage-warning { color:#ffb5ac !important; }
+    .grand-total { color:var(--goldlight) !important; border-top:2px solid var(--gold) !important; }
+    .summary-person,.extra-table { border-color:var(--line) !important; }
+    .special-calculator { background:#111112 !important; border:1px solid var(--gold) !important; border-radius:11px; }
+    .special-fields label,.special-currency-symbol,.article-currency-symbol { color:var(--goldlight) !important; }
+    #onlineStatus,.person-lock .lock-state { background:#242426 !important; color:var(--goldlight) !important; border:1px solid #666052 !important; border-radius:7px; }
+    .person-card.unlocked .lock-state { background:#25352b !important; color:#a9e0b6 !important; }
+    .toolbar > span:last-child { color:var(--muted) !important; }
+    .person-card.locked .protected-control { opacity:.55; }
+    ::selection { background:var(--gold); color:#111; }
+    @media(max-width:600px) { .container { width:95%; margin:18px auto; } .panel,.person-card,.summary { padding:14px; } .person-lock { margin-left:0; } .toolbar button { flex:1 1 145px; } }
   </style>
 </head>
 <body>
@@ -2132,7 +2174,7 @@
 
     const label = document.createElement("label");
     label.htmlFor = "personPicker";
-    label.textContent = "Person auswählen ";
+    label.textContent = "Person auswÃ¤hlen ";
 
     const picker = document.createElement("select");
     picker.id = "personPicker";
@@ -2148,12 +2190,12 @@
     details.className = "summary";
 
     const heading = document.createElement("summary");
-    heading.textContent = "Gesamtübersicht";
+    heading.textContent = "GesamtÃ¼bersicht";
     heading.style.cursor = "pointer";
 
     overview.before(details);
     details.append(heading, summaryArticleTotals, overview.querySelector(".grand-total"));
-    overview.querySelector("h2").textContent = "Übersicht der ausgewählten Person";
+    overview.querySelector("h2").textContent = "Ãœbersicht der ausgewÃ¤hlten Person";
     overview.before(details);
     overview.after(details);
 
