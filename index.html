@@ -2174,7 +2174,7 @@
 
     const label = document.createElement("label");
     label.htmlFor = "personPicker";
-    label.textContent = "Person auswÃ¤hlen ";
+    label.textContent = "Person ausw\u00e4hlen ";
 
     const picker = document.createElement("select");
     picker.id = "personPicker";
@@ -2190,12 +2190,12 @@
     details.className = "summary";
 
     const heading = document.createElement("summary");
-    heading.textContent = "GesamtÃ¼bersicht";
+    heading.textContent = "Gesamt\u00fcbersicht";
     heading.style.cursor = "pointer";
 
     overview.before(details);
     details.append(heading, summaryArticleTotals, overview.querySelector(".grand-total"));
-    overview.querySelector("h2").textContent = "Ãœbersicht der ausgewÃ¤hlten Person";
+    overview.querySelector("h2").textContent = "\u00dcbersicht der ausgew\u00e4hlten Person";
     overview.before(details);
     overview.after(details);
 
