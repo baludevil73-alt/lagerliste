@@ -2125,5 +2125,94 @@
     calculateAll();
     initOnlineSync();
   </script>
+  <script>
+  (() => {
+    const toolbar = document.createElement("div");
+    toolbar.className = "panel";
+
+    const label = document.createElement("label");
+    label.htmlFor = "personPicker";
+    label.textContent = "Person auswählen ";
+
+    const picker = document.createElement("select");
+    picker.id = "personPicker";
+    picker.className = "person-name";
+    picker.style.cssText =
+      "background:#0b243b;color:#fff;min-width:0;max-width:100%";
+
+    toolbar.append(label, picker);
+    personsContainer.before(toolbar);
+
+    const overview = summaryPersons.closest(".summary");
+    const details = document.createElement("details");
+    details.className = "summary";
+
+    const heading = document.createElement("summary");
+    heading.textContent = "Gesamtübersicht";
+    heading.style.cursor = "pointer";
+
+    overview.before(details);
+    details.append(heading, summaryArticleTotals, overview.querySelector(".grand-total"));
+    overview.querySelector("h2").textContent = "Übersicht der ausgewählten Person";
+    overview.before(details);
+    overview.after(details);
+
+    let selectedCard;
+    let selectedName;
+    let selectedOccurrence = 0;
+
+    function refreshPersonPicker() {
+      const cards = [...personsContainer.querySelectorAll(".person-card")];
+      const names = cards.map((card, index) =>
+        card.querySelector(".person-name").value.trim() || `Person ${index + 1}`
+      );
+
+      let index = cards.indexOf(selectedCard);
+      if (index < 0) {
+        const matches = names.flatMap((name, position) =>
+          name === selectedName ? [position] : []
+        );
+        index = matches[selectedOccurrence] ?? matches[0] ?? 0;
+      }
+
+      selectedCard = cards[index];
+      selectedName = names[index];
+      selectedOccurrence = names.slice(0, index)
+        .filter(name => name === selectedName).length;
+
+      const options = names.length
+        ? names.map((name, position) => new Option(name, String(position)))
+        : [new Option("Keine Personen vorhanden", "")];
+
+      picker.replaceChildren(...options);
+      picker.disabled = !cards.length;
+      if (cards.length) picker.value = String(index);
+
+      cards.forEach((card, position) => {
+        card.hidden = position !== index;
+      });
+      [...summaryPersons.children].forEach((block, position) => {
+        block.hidden = position !== index;
+      });
+      overview.hidden = !cards.length;
+    }
+
+    picker.addEventListener("input", event => event.stopPropagation());
+    picker.addEventListener("change", event => {
+      event.stopPropagation();
+      selectedCard = personsContainer.querySelectorAll(".person-card")[Number(picker.value)];
+      refreshPersonPicker();
+    });
+
+    personsContainer.addEventListener("input", event => {
+      if (event.target.classList.contains("person-name")) refreshPersonPicker();
+    });
+
+    const observer = new MutationObserver(refreshPersonPicker);
+    observer.observe(personsContainer, { childList: true });
+    observer.observe(summaryPersons, { childList: true });
+    refreshPersonPicker();
+  })();
+</script>
 </body>
 </html>
